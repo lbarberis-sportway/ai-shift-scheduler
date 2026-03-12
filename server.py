@@ -10,6 +10,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from cp_sat.solver import solve_schedule, analyze_history
 from db_manager import learn_patterns, get_top_patterns, get_stats
 
+# Per far funzionare il routing sia locale che su Vercel:
+# Su Vercel le chiamate arrivano con il prefisso /api/
+API_PREFIX = "/api" if os.environ.get("VERCEL") else ""
+
 app = FastAPI()
 
 # Enable CORS for the React frontend
@@ -25,6 +29,7 @@ class OptimizeRequest(BaseModel):
     employees: List[Dict[str, Any]]
     settings: Dict[str, Any]
 
+@app.post("/api/optimize")
 @app.post("/optimize")
 async def optimize(request: OptimizeRequest):
     try:
@@ -95,6 +100,7 @@ async def optimize(request: OptimizeRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/stats")
 @app.get("/stats")
 async def stats():
     """Get pattern database statistics."""

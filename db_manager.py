@@ -8,7 +8,12 @@ import os
 import json
 from datetime import datetime
 
-DB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database')
+# Su Vercel il filesystem è in sola lettura, tranne /tmp/
+if os.environ.get("VERCEL"):
+    DB_DIR = '/tmp'
+else:
+    DB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database')
+
 DB_PATH = os.path.join(DB_DIR, 'scheduler.db')
 
 

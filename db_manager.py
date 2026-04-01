@@ -43,12 +43,13 @@ def _init_schema(conn):
 
         CREATE TABLE IF NOT EXISTS employee_preferences (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            employee_id TEXT NOT NULL,
             employee_name TEXT NOT NULL,
             pattern_key TEXT NOT NULL,
             day_of_week TEXT,
             frequency INTEGER DEFAULT 1,
             last_seen TEXT NOT NULL,
-            UNIQUE(employee_name, pattern_key, day_of_week)
+            UNIQUE(employee_id, pattern_key, day_of_week)
         );
 
         CREATE TABLE IF NOT EXISTS import_log (
@@ -61,8 +62,8 @@ def _init_schema(conn):
 
         CREATE INDEX IF NOT EXISTS idx_patterns_freq
             ON shift_patterns(frequency DESC);
-        CREATE INDEX IF NOT EXISTS idx_emp_prefs_name
-            ON employee_preferences(employee_name);
+        CREATE INDEX IF NOT EXISTS idx_emp_prefs_id
+            ON employee_preferences(employee_id);
     """)
     conn.commit()
 
@@ -91,7 +92,8 @@ def learn_patterns(employees, store_open_str='09:30', store_close_str='19:30', s
     patterns_learned = 0
     
     for emp in employees:
-        emp_name = emp.get('Nome', 'Unknown')
+        emp_id = str(emp.get('ID', '')).strip()
+        emp_name = emp.get('Nome Cognome', emp.get('Nome', 'Unknown')).strip()
         
         for day_name in DAY_NAMES:
             shift_str = (emp.get(day_name, '') or '').strip()
@@ -120,12 +122,13 @@ def learn_patterns(employees, store_open_str='09:30', store_close_str='19:30', s
             
             # Track employee-specific preferences
             conn.execute("""
-                INSERT INTO employee_preferences (employee_name, pattern_key, day_of_week, frequency, last_seen)
-                VALUES (?, ?, ?, 1, ?)
-                ON CONFLICT(employee_name, pattern_key, day_of_week) DO UPDATE SET
+                INSERT INTO employee_preferences (employee_id, employee_name, pattern_key, day_of_week, frequency, last_seen)
+                VALUES (?, ?, ?, ?, 1, ?)
+                ON CONFLICT(employee_id, pattern_key, day_of_week) DO UPDATE SET
+                    employee_name = excluded.employee_name,
                     frequency = frequency + 1,
                     last_seen = ?
-            """, (emp_name, seg_key, day_name, now, now))
+            """, (emp_id, emp_name, seg_key, day_name, now, now))
     
     # Log the import
     conn.execute("""
@@ -177,20 +180,22 @@ def get_top_patterns(limit=30, min_frequency=1):
     return patterns
 
 
-def get_employee_preferred_patterns(employee_name, limit=10):
+def get_employee_preferred_patterns(employee_id, limit=10):
     """
-    Get patterns that a specific employee has used most frequently.
+    Get patterns that a specific employee has used most frequently (all days combined).
     """
     conn = get_connection()
     
     rows = conn.execute("""
-        SELECT ep.pattern_key, sp.segments_json, sp.total_min, sp.slot_type, ep.frequency
+        SELECT ep.pattern_key, sp.segments_json, sp.total_min, sp.slot_type,
+               SUM(ep.frequency) as frequency
         FROM employee_preferences ep
         JOIN shift_patterns sp ON ep.pattern_key = sp.segments_key
-        WHERE ep.employee_name = ?
-        ORDER BY ep.frequency DESC
+        WHERE ep.employee_id = ?
+        GROUP BY ep.pattern_key
+        ORDER BY frequency DESC
         LIMIT ?
-    """, (employee_name, limit)).fetchall()
+    """, (employee_id, limit)).fetchall()
     
     conn.close()
     
@@ -205,13 +210,125 @@ def get_employee_preferred_patterns(employee_name, limit=10):
     ]
 
 
+def get_employee_preferred_patterns_by_day(employee_id, day_of_week, limit=10, min_day_patterns=3):
+    """
+    Get patterns that a specific employee has used most frequently on a specific day.
+    Falls back to the employee's global patterns if not enough day-specific data exists.
+
+    Args:
+        employee_id: the employee's matricola string
+        day_of_week: day name, e.g. 'Lun', 'Mar', ..., 'Dom'
+        limit: maximum number of patterns to return
+        min_day_patterns: if fewer than this many day-specific patterns exist,
+                          supplement with global employee patterns
+
+    Returns:
+        List of pattern dicts with a 'frequency' and optional 'day_specific' flag.
+    """
+    conn = get_connection()
+
+    # Day-specific patterns for this employee
+    day_rows = conn.execute("""
+        SELECT ep.pattern_key, sp.segments_json, sp.total_min, sp.slot_type, ep.frequency
+        FROM employee_preferences ep
+        JOIN shift_patterns sp ON ep.pattern_key = sp.segments_key
+        WHERE ep.employee_id = ? AND ep.day_of_week = ?
+        ORDER BY ep.frequency DESC
+        LIMIT ?
+    """, (employee_id, day_of_week, limit)).fetchall()
+
+    results = [
+        {
+            'segments': json.loads(row['segments_json']),
+            'total_min': row['total_min'],
+            'slot': row['slot_type'],
+            'frequency': row['frequency'],
+            'day_specific': True,
+        }
+        for row in day_rows
+    ]
+    day_keys = {row['pattern_key'] for row in day_rows}
+
+    # Fallback: supplement with global employee patterns if needed
+    if len(results) < min_day_patterns:
+        remaining = limit - len(results)
+        global_rows = conn.execute("""
+            SELECT ep.pattern_key, sp.segments_json, sp.total_min, sp.slot_type,
+                   SUM(ep.frequency) as frequency
+            FROM employee_preferences ep
+            JOIN shift_patterns sp ON ep.pattern_key = sp.segments_key
+            WHERE ep.employee_id = ? AND ep.pattern_key NOT IN ({placeholders})
+            GROUP BY ep.pattern_key
+            ORDER BY frequency DESC
+            LIMIT ?
+        """.format(placeholders=','.join('?' * len(day_keys)) if day_keys else "'__none__'"),
+            [employee_id] + list(day_keys) + [remaining]
+        ).fetchall()
+
+        for row in global_rows:
+            results.append({
+                'segments': json.loads(row['segments_json']),
+                'total_min': row['total_min'],
+                'slot': row['slot_type'],
+                'frequency': max(1, row['frequency'] // 2),  # halve weight for non-day-specific
+                'day_specific': False,
+            })
+
+    conn.close()
+    return results
+
+
+def get_top_patterns_by_day(day_of_week, limit=30, min_frequency=1):
+    """
+    Retrieve the globally most used patterns filtered by day of the week.
+    Useful as a fallback for employees with no personal history.
+
+    Args:
+        day_of_week: day name, e.g. 'Lun', 'Sab', ...
+        limit: maximum patterns to return
+        min_frequency: minimum combined frequency threshold
+
+    Returns:
+        List of pattern dicts ready for the solver.
+    """
+    conn = get_connection()
+
+    rows = conn.execute("""
+        SELECT sp.segments_key, sp.segments_json, sp.total_min, sp.slot_type,
+               SUM(ep.frequency) as day_frequency
+        FROM employee_preferences ep
+        JOIN shift_patterns sp ON ep.pattern_key = sp.segments_key
+        WHERE ep.day_of_week = ?
+        GROUP BY ep.pattern_key
+        HAVING day_frequency >= ?
+        ORDER BY day_frequency DESC
+        LIMIT ?
+    """, (day_of_week, min_frequency, limit)).fetchall()
+
+    conn.close()
+
+    patterns = []
+    for row in rows:
+        segments = json.loads(row['segments_json'])
+        patterns.append({
+            'name': f"db_{row['slot_type']}_{row['day_frequency']}x_{day_of_week}",
+            'segments': segments,
+            'total_min': row['total_min'],
+            'slot': row['slot_type'],
+            'frequency': row['day_frequency'],
+            'from_db': True,
+        })
+
+    return patterns
+
+
 def get_stats():
     """Get summary statistics of the pattern database."""
     conn = get_connection()
     
     total_patterns = conn.execute("SELECT COUNT(*) FROM shift_patterns").fetchone()[0]
     total_imports = conn.execute("SELECT COUNT(*) FROM import_log").fetchone()[0]
-    total_employees = conn.execute("SELECT COUNT(DISTINCT employee_name) FROM employee_preferences").fetchone()[0]
+    total_employees = conn.execute("SELECT COUNT(DISTINCT employee_id) FROM employee_preferences").fetchone()[0]
     top_pattern = conn.execute(
         "SELECT segments_key, frequency FROM shift_patterns ORDER BY frequency DESC LIMIT 1"
     ).fetchone()

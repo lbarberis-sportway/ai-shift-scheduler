@@ -95,10 +95,10 @@ export function UploadSection({ onDataLoaded }) {
                     if (results.data && results.data.length > 0) {
                         // Check if columns exist
                         const firstRow = results.data[0];
-                        if ('Nome' in firstRow && 'Ore Contratto' in firstRow) {
+                        if ('ID' in firstRow && 'Nome Cognome' in firstRow && 'Ore Contratto' in firstRow) {
                             setParsedData(results.data);
                         } else {
-                            alert("CSV non valido. Assicurati che ci siano le colonne 'Nome' e 'Ore Contratto'.");
+                            alert("CSV non valido. Assicurati che ci siano le colonne 'ID', 'Nome Cognome' e 'Ore Contratto'.");
                             setParsedData(null);
                             setFileName('');
                         }
@@ -212,7 +212,7 @@ export function UploadSection({ onDataLoaded }) {
 
                     <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
                         <FileSpreadsheet className="w-4 h-4" />
-                        <span>Formato: Nome; Ore Contratto; Esigenze; Lun...Dom; Lun_W1...Dom_W3</span>
+                        <span>Formato: ID; Nome Cognome; Ore Contratto; ...; Lun_W1...Dom_W3</span>
                     </div>
                 </label>
             </div>

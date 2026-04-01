@@ -12,8 +12,10 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
         // Flatten for export with EXACT columns requested
         const exportData = schedule.map(emp => {
             return {
-                'Nome': emp.Nome,
-                'Ore Contratto': emp['Ore Contratto'],
+                'ID': emp.ID,
+                'Nome Cognome': emp.Nome,
+                'Ore Contratto': emp['Ore Contratto'] || 0,
+                'Ore Assegnate': emp.assignedHours || 0,
                 'Esigenze/Preferenze': emp['Esigenze/Preferenze'],
                 'Lun': emp.shifts.Lun,
                 'Mar': emp.shifts.Mar,
@@ -59,7 +61,10 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
 
         // Table Data
         const body = schedule.map(emp => [
+            emp.ID,
             emp.Nome,
+            emp['Ore Contratto'] || '0',
+            emp.assignedHours || '0',
             emp.shifts.Lun || '-',
             emp.shifts.Mar || '-',
             emp.shifts.Mer || '-',
@@ -71,7 +76,7 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
 
         autoTable(doc, {
             startY: 35,
-            head: [['Dipendente', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']],
+            head: [['Matricola', 'Dipendente', 'Contratto', 'Assegnate', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']],
             body: body,
             headStyles: {
                 fillColor: [220, 38, 38], // Red-600
@@ -81,14 +86,17 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
                 halign: 'center'
             },
             columnStyles: {
-                0: { fontStyle: 'bold', cellWidth: 35 },
-                1: { halign: 'center' },
-                2: { halign: 'center' },
-                3: { halign: 'center' },
-                4: { halign: 'center' },
+                0: { fontStyle: 'bold', cellWidth: 16 }, // Matricola
+                1: { fontStyle: 'bold', cellWidth: 32 }, // Nome
+                2: { halign: 'center', cellWidth: 15 },  // Contratto
+                3: { halign: 'center', cellWidth: 15 },  // Assegnate
+                4: { halign: 'center' }, // Lun
                 5: { halign: 'center' },
                 6: { halign: 'center' },
-                7: { halign: 'center' }
+                7: { halign: 'center' },
+                8: { halign: 'center' },
+                9: { halign: 'center' },
+                10: { halign: 'center' }
             },
             styles: {
                 fontSize: 8,
@@ -97,8 +105,8 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
                 overflow: 'linebreak'
             },
             didParseCell: function (data) {
-                // Style shift columns (Lun-Dom)
-                if (data.section === 'body' && data.column.index >= 1) {
+                // Style shift columns (Lun-Dom) which now start from index 4
+                if (data.section === 'body' && data.column.index >= 4) {
                     data.cell.styles.fillColor = [238, 242, 255]; // Indigo-50
                     data.cell.styles.textColor = [67, 56, 202]; // Indigo-700
                 }
@@ -148,6 +156,7 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
+                            <th className="p-4 font-semibold border-b border-slate-200">Matricola</th>
                             <th className="p-4 font-semibold border-b border-slate-200">Dipendente</th>
                             <th className="p-4 font-semibold border-b border-slate-200">Contratto</th>
                             <th className="p-4 font-semibold border-b border-slate-200 text-center">Ore</th>
@@ -165,6 +174,9 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
 
                             return (
                                 <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="p-4 font-medium text-slate-500 font-mono text-sm">
+                                        {emp.ID}
+                                    </td>
                                     <td className="p-4 font-medium text-slate-800">
                                         {emp.Nome}
                                         <div className="text-xs text-slate-400 font-normal mt-0.5 max-w-[150px] truncate" title={emp['Esigenze/Preferenze']}>

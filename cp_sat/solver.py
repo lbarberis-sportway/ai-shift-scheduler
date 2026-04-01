@@ -340,7 +340,7 @@ def verify_coverage(shift_types, store_open, store_close):
     return uncovered
 
 
-def solve_schedule(people, settings, db_patterns=None):
+def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=None):
     """
     Core solving function: GENERATES new shifts using learned patterns.
     Uses patterns from 3 sources (priority order):
@@ -359,6 +359,8 @@ def solve_schedule(people, settings, db_patterns=None):
     
     if db_patterns is None:
         db_patterns = []
+    if employee_day_patterns is None:
+        employee_day_patterns = {}
     
     # ===== BUILD SHIFT TYPE POOL =====
     # 1. Extract real patterns from current CSV data
@@ -497,15 +499,41 @@ def solve_schedule(people, settings, db_patterns=None):
     afternoon_idxs = [s for s, st in enumerate(shift_types) if st['slot'] == 'afternoon']
     split_idxs = [s for s, st in enumerate(shift_types) if st['slot'] == 'split']
     
-    # Identify DB patterns and their indices (with frequency weights)
+    # Identify DB patterns and their indices (with frequency weights) — global pool
     db_pattern_keys = set(segments_to_key(p['segments']) for p in db_patterns)
     db_pattern_freq = {segments_to_key(p['segments']): p.get('frequency', 1) for p in db_patterns}
     db_idxs = [s for s, st in enumerate(shift_types) if segments_to_key(st['segments']) in db_pattern_keys]
-    
+
     # Also identify CSV-extracted patterns
     extracted_keys = set(segments_to_key(p['segments']) for p in extracted)
     historical_idxs = [s for s, st in enumerate(shift_types) if segments_to_key(st['segments']) in extracted_keys]
-    
+
+    # Pre-build per-(employee, day) reward maps from employee_day_patterns
+    # Structure: emp_day_reward[i][d] = {shift_type_index: reward_value}
+    emp_day_reward = [{} for _ in range(n)]
+    for i, p in enumerate(people):
+        emp_id = p.get('employee_id', '')
+        if not emp_id or emp_id not in employee_day_patterns:
+            emp_day_reward[i] = None  # will fall back to global DB rewards
+            continue
+        day_rewards = {}
+        for d_idx, d_name in enumerate(DAY_NAMES):
+            day_pats = employee_day_patterns[emp_id].get(d_name, [])
+            # Build a key -> frequency map for this employee+day
+            day_freq_map = {
+                segments_to_key(dp['segments']): dp.get('frequency', 1)
+                for dp in day_pats
+            }
+            reward_for_day = {}
+            for s_idx, st in enumerate(shift_types):
+                key = segments_to_key(st['segments'])
+                if key in day_freq_map:
+                    freq = min(day_freq_map[key], 20)
+                    reward_for_day[s_idx] = -1 * (2 + freq // 3)  # negative = reward
+            if reward_for_day:
+                day_rewards[d_idx] = reward_for_day
+        emp_day_reward[i] = day_rewards if day_rewards else None
+
     for i in range(n):
         # --- Rotation: balance morning and afternoon ---
         open_days = [d for d in range(num_days) if d not in closed_days]
@@ -526,22 +554,37 @@ def solve_schedule(people, settings, db_patterns=None):
                 model.Add(a == 0)
             morning_days.append(m)
             afternoon_days.append(a)
-        
+
         diff = model.NewIntVar(-7, 7, f"bal_{i}")
         model.Add(diff == sum(morning_days) - sum(afternoon_days))
         abs_diff = model.NewIntVar(0, 7, f"abs_bal_{i}")
         model.AddAbsEquality(abs_diff, diff)
         objective.append(10 * abs_diff)  # Penalize imbalance
-        
-        # --- Reward DB patterns (proportional to frequency) ---
-        for d in range(num_days):
-            for s in db_idxs:
-                key = segments_to_key(shift_types[s]['segments'])
-                freq = min(db_pattern_freq.get(key, 1), 20)  # Cap to avoid over-dominance
-                # Higher frequency = stronger reward (logarithmic scaling)
-                reward = -1 * (2 + freq // 3)
-                objective.append(reward * assign[i][d][s])
-        
+
+        # --- Reward patterns: per-employee-per-day if available, else global DB ---
+        per_day_map = emp_day_reward[i]  # None or {d_idx: {s_idx: reward}}
+        if per_day_map is not None:
+            # Use fine-grained per-day rewards from employee history
+            for d in range(num_days):
+                day_rewards = per_day_map.get(d, {})
+                if day_rewards:
+                    for s_idx, reward in day_rewards.items():
+                        objective.append(reward * assign[i][d][s_idx])
+                else:
+                    # No day-specific data for this day: fall back to global DB reward
+                    for s in db_idxs:
+                        key = segments_to_key(shift_types[s]['segments'])
+                        freq = min(db_pattern_freq.get(key, 1), 20)
+                        objective.append(-1 * (1 + freq // 4) * assign[i][d][s])
+        else:
+            # No employee history at all — use global DB rewards
+            for d in range(num_days):
+                for s in db_idxs:
+                    key = segments_to_key(shift_types[s]['segments'])
+                    freq = min(db_pattern_freq.get(key, 1), 20)
+                    reward = -1 * (2 + freq // 3)
+                    objective.append(reward * assign[i][d][s])
+
         # --- Also reward CSV-extracted patterns (weaker than DB) ---
         for d in range(num_days):
             for s in historical_idxs:
@@ -603,6 +646,7 @@ def solve_schedule(people, settings, db_patterns=None):
                     total_worked_min += assigned['total_min']
             
             results.append({
+                "ID": p.get('employee_id', ''),
                 "Nome": p['name'],
                 "shifts": emp_shifts,
                 "assignedHours": round(total_worked_min / 60, 2),

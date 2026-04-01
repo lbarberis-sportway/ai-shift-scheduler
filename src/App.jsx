@@ -41,11 +41,40 @@ function App() {
       // Transform incoming data to match the expected format in the UI
       // The solver returns { Nome, shifts: { Lun, ... }, assignedHours }
       // We need to ensure it matches what the UI components expect.
+      // Helper function to calculate exact hours from a shift strings object
+      const calculateTotalHours = (shifts) => {
+        let totalHours = 0;
+        Object.values(shifts).forEach(shift => {
+          if (!shift) return;
+          try {
+            const segments = shift.split('/').map(s => s.trim());
+            segments.forEach(segment => {
+              if (segment.includes('-')) {
+                const cleaned = segment.replace(/\s/g, '');
+                const [s, e] = cleaned.split('-');
+                const startHour = parseInt(s.split(':')[0] || s);
+                const startMin = s.includes(':') ? parseInt(s.split(':')[1]) : 0;
+                const endHour = parseInt(e.split(':')[0] || e);
+                const endMin = e.includes(':') ? parseInt(e.split(':')[1]) : 0;
+                
+                if (!isNaN(startHour) && !isNaN(endHour)) {
+                  let startTotalMin = startHour * 60 + startMin;
+                  let endTotalMin = endHour * 60 + endMin;
+                  totalHours += (endTotalMin - startTotalMin) / 60;
+                }
+              }
+            });
+          } catch (e) { }
+        });
+        return totalHours;
+      };
+
       const formattedSchedule = result.schedule.map(emp => ({
         ...emp,
+        ID: emp.ID,
         Nome: emp.Nome,
         shifts: emp.shifts,
-        assignedHours: emp.assignedHours
+        assignedHours: calculateTotalHours(emp.shifts) // Override server value to guarantee UI consistency
       }));
 
       setSchedule(formattedSchedule);
@@ -68,23 +97,25 @@ function App() {
       const emp = { ...newSchedule[empIndex] };
       emp.shifts = { ...emp.shifts, [day]: newShift };
 
-      // Recalculate total hours
+      // Recalculate total hours using same exact logic
       let totalHours = 0;
       Object.values(emp.shifts).forEach(shift => {
         if (!shift) return;
         try {
-          // Support multiple shifts separated by " / " or space-slash-space
-          // e.g. "09:00-13:00 / 17:00-21:00"
           const segments = shift.split('/').map(s => s.trim());
-
           segments.forEach(segment => {
             if (segment.includes('-')) {
               const cleaned = segment.replace(/\s/g, '');
               const [s, e] = cleaned.split('-');
-              const start = parseInt(s);
-              const end = parseInt(e);
-              if (!isNaN(start) && !isNaN(end)) {
-                totalHours += (end - start);
+              const startHour = parseInt(s.split(':')[0] || s);
+              const startMin = s.includes(':') ? parseInt(s.split(':')[1]) : 0;
+              const endHour = parseInt(e.split(':')[0] || e);
+              const endMin = e.includes(':') ? parseInt(e.split(':')[1]) : 0;
+              
+              if (!isNaN(startHour) && !isNaN(endHour)) {
+                let startTotalMin = startHour * 60 + startMin;
+                let endTotalMin = endHour * 60 + endMin;
+                totalHours += (endTotalMin - startTotalMin) / 60;
               }
             }
           });
@@ -130,7 +161,7 @@ function App() {
             <div className="mt-8 sm:mt-12 text-left bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm max-w-2xl mx-auto">
               <h4 className="font-semibold text-slate-900 mb-2">Formato CSV Richiesto:</h4>
               <code className="block bg-slate-100 p-3 rounded text-xs text-slate-700 font-mono overflow-x-auto whitespace-pre sm:whitespace-normal">
-                Nome; Ore Contratto; Esigenze/Preferenze; Lun; Mar; ...; Dom; Lun_W1; Mar_W1; ...; Dom_W3
+                ID; Nome Cognome; Ore Contratto; Esigenze/Preferenze; Lun; Mar; ...; Dom; Lun_W1; Mar_W1; ...; Dom_W3
               </code>
               <p className="text-xs text-slate-500 mt-2">
                 Le colonne dei giorni (Lun...Dom) sono per la settimana da generare. Le colonne _W1, _W2, _W3 contengono lo storico.

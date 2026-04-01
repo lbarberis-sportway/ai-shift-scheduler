@@ -7,8 +7,14 @@ import os
 
 # Add the current directory to path to import solver
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from cp_sat.solver import solve_schedule, analyze_history
-from db_manager import learn_patterns, get_top_patterns, get_stats
+from cp_sat.solver import solve_schedule, analyze_history, DAY_NAMES
+from db_manager import (
+    learn_patterns,
+    get_top_patterns,
+    get_top_patterns_by_day,
+    get_employee_preferred_patterns_by_day,
+    get_stats,
+)
 
 # Per far funzionare il routing sia locale che su Vercel:
 # Su Vercel le chiamate arrivano con il prefisso /api/
@@ -61,7 +67,8 @@ async def optimize(request: OptimizeRequest):
             history = analyze_history(emp)
             
             processed_people.append({
-                'name': emp.get('Nome', 'Sconosciuto'),
+                'employee_id': str(emp.get('ID', '')).strip(),
+                'name': emp.get('Nome Cognome', emp.get('Nome', 'Sconosciuto')).strip(),
                 'contract_min': int(contract_hours * 60),
                 'contract_hours': contract_hours,
                 'preferences': emp.get('Esigenze/Preferenze', ''),
@@ -69,11 +76,33 @@ async def optimize(request: OptimizeRequest):
                 'raw': emp,  # Keep original for pattern extraction
             })
         
-        # === STEP 4: SOLVE with accumulated knowledge ===
+        # === STEP 4: BUILD per-employee per-day pattern map ===
+        employee_day_patterns = {}
+        employees_with_history = 0
+        for ep in processed_people:
+            emp_id = ep.get('employee_id', '')
+            if not emp_id:
+                continue
+            day_map = {}
+            has_any = False
+            for day_name in DAY_NAMES:
+                day_pats = get_employee_preferred_patterns_by_day(
+                    emp_id, day_name, limit=8, min_day_patterns=3
+                )
+                if day_pats:
+                    day_map[day_name] = day_pats
+                    has_any = True
+            if has_any:
+                employee_day_patterns[emp_id] = day_map
+                employees_with_history += 1
+        print(f"📅 Day-pattern map built for {employees_with_history}/{len(processed_people)} employees")
+
+        # === STEP 5: SOLVE with accumulated knowledge ===
         results, status = solve_schedule(
             processed_people,
             request.settings,
-            db_patterns=db_patterns  # Pass learned patterns to solver
+            db_patterns=db_patterns,
+            employee_day_patterns=employee_day_patterns,
         )
         
         if not results:

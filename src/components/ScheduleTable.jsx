@@ -1,7 +1,7 @@
 
 import React from 'react';
 import Papa from 'papaparse';
-import { Download, RotateCcw, CheckCircle, AlertCircle, FileDown } from 'lucide-react';
+import { Download, RotateCcw, CheckCircle, AlertCircle, FileDown, CloudUpload } from 'lucide-react';
 import { DAYS } from '../utils/constants';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -41,6 +41,50 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
         document.body.removeChild(link);
     };
 
+    const exportFluidaCSV = () => {
+        const DAY_MAP = {
+            Lun: 'LUNEDI',
+            Mar: 'MARTEDI',
+            Mer: 'MERCOLEDI',
+            Gio: 'GIOVEDI',
+            Ven: 'VENERDI',
+            Sab: 'SABATO',
+            Dom: 'DOMENICA',
+        };
+
+        const normalizeShift = (value) => {
+            if (!value || value.trim() === '' || value.trim() === '-') return '';
+            if (value.trim().toUpperCase() === 'RI') return 'RI';
+            // Converte separatore " / " nel formato richiesto da Fluida "||"
+            return value.replace(/\s*\/\s*/g, '||');
+        };
+
+        const exportData = schedule.map(emp => {
+            const row = {
+                'ID': emp.ID,
+                'DIPENDENTE': (emp.Nome || '').toUpperCase(),
+            };
+            Object.entries(DAY_MAP).forEach(([short, long]) => {
+                row[long] = normalizeShift(emp.shifts[short] || '');
+            });
+            return row;
+        });
+
+        const csv = Papa.unparse(exportData, {
+            delimiter: ";",
+            columns: ['ID', 'DIPENDENTE', 'LUNEDI', 'MARTEDI', 'MERCOLEDI', 'GIOVEDI', 'VENERDI', 'SABATO', 'DOMENICA'],
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'turni_fluida.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const exportPDF = () => {
         const doc = new jsPDF('l', 'mm', 'a4');
         const pageWidth = doc.internal.pageSize.getWidth();
@@ -59,62 +103,95 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
         doc.setFontSize(10);
         doc.text(`Data Generazione: ${date}`, pageWidth - 14, 28, { align: 'right' });
 
-        // Table Data
-        const body = schedule.map(emp => [
-            emp.ID,
-            emp.Nome,
-            emp['Ore Contratto'] || '0',
-            emp.assignedHours || '0',
-            emp.shifts.Lun || '-',
-            emp.shifts.Mar || '-',
-            emp.shifts.Mer || '-',
-            emp.shifts.Gio || '-',
-            emp.shifts.Ven || '-',
-            emp.shifts.Sab || '-',
-            emp.shifts.Dom || '-'
-        ]);
+        // Splits "HH:MM-HH:MM / HH:MM-HH:MM" or "HH:MM-HH:MM||HH:MM-HH:MM"
+        // into [mattina, pomeriggio]
+        const splitShift = (value) => {
+            if (!value || value.trim() === '' || value.trim() === '-') return ['', ''];
+            const v = value.trim();
+            if (v.toUpperCase() === 'RI') return ['RI', ''];
+            const parts = v.split(/\s*\/\s*|\|\|/);
+            return [parts[0]?.trim() || '', parts[1]?.trim() || ''];
+        };
+
+        // Build body: Nome + [mattina, pomeriggio] × 7 days = 15 cells per row
+        const dayKeys = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+        const body = schedule.map(emp => {
+            const row = [emp.Nome];
+            dayKeys.forEach(day => {
+                const [m, p] = splitShift(emp.shifts[day]);
+                row.push(m, p);
+            });
+            return row;
+        });
+
+        const dayLabels = ['LUNEDÌ', 'MARTEDÌ', 'MERCOLEDÌ', 'GIOVEDÌ', 'VENERDÌ', 'SABATO', 'DOMENICA'];
 
         autoTable(doc, {
             startY: 35,
-            head: [['Matricola', 'Dipendente', 'Contratto', 'Assegnate', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']],
+            head: [
+                // Row 1: day names spanning 2 cols each, Nome spanning 2 rows
+                [
+                    { content: 'DIPENDENTE', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fontStyle: 'bold' } },
+                    ...dayLabels.map(d => ({ content: d, colSpan: 2, styles: { halign: 'center' } })),
+                ],
+                // Row 2: Mattina | Pomeriggio repeated for each day
+                [
+                    ...Array(7).fill(null).flatMap(() => [
+                        { content: 'Mattina', styles: { halign: 'center', fontSize: 6 } },
+                        { content: 'Pomeriggio', styles: { halign: 'center', fontSize: 6 } },
+                    ]),
+                ],
+            ],
             body: body,
             headStyles: {
                 fillColor: [220, 38, 38], // Red-600
                 textColor: [255, 255, 255],
-                fontSize: 10,
+                fontSize: 8,
                 fontStyle: 'bold',
-                halign: 'center'
+                halign: 'center',
             },
             columnStyles: {
-                0: { fontStyle: 'bold', cellWidth: 16 }, // Matricola
-                1: { fontStyle: 'bold', cellWidth: 32 }, // Nome
-                2: { halign: 'center', cellWidth: 15 },  // Contratto
-                3: { halign: 'center', cellWidth: 15 },  // Assegnate
-                4: { halign: 'center' }, // Lun
-                5: { halign: 'center' },
-                6: { halign: 'center' },
-                7: { halign: 'center' },
-                8: { halign: 'center' },
-                9: { halign: 'center' },
-                10: { halign: 'center' }
+                0: { fontStyle: 'bold', cellWidth: 30 }, // Nome
+                // Shift cols 1-14: 2 per day × 7 days
+                ...Object.fromEntries(
+                    Array.from({ length: 14 }, (_, i) => [i + 1, { halign: 'center', cellWidth: 17 }])
+                ),
             },
             styles: {
-                fontSize: 8,
-                cellPadding: 2,
+                fontSize: 7,
+                cellPadding: 1.5,
                 valign: 'middle',
-                overflow: 'linebreak'
+                overflow: 'hidden',
             },
             didParseCell: function (data) {
-                // Style shift columns (Lun-Dom) which now start from index 4
-                if (data.section === 'body' && data.column.index >= 4) {
-                    data.cell.styles.fillColor = [238, 242, 255]; // Indigo-50
-                    data.cell.styles.textColor = [67, 56, 202]; // Indigo-700
+                if (data.section === 'body' && data.column.index >= 1) {
+                    // Smaller font + tight padding so "09:30-12:00" fits on one line
+                    data.cell.styles.fontSize = 6.5;
+                    data.cell.styles.cellPadding = 1;
+                    const isMattina = (data.column.index - 1) % 2 === 0;
+                    if (isMattina) {
+                        data.cell.styles.fillColor = [238, 242, 255]; // Indigo-50
+                        data.cell.styles.textColor = [67, 56, 202];   // Indigo-700
+                    } else {
+                        data.cell.styles.fillColor = [255, 251, 235]; // Amber-50
+                        data.cell.styles.textColor = [180, 83, 9];    // Amber-700
+                    }
+                }
+            },
+            didDrawCell: function (data) {
+                // Draw a thicker vertical line at the start of each day block (indexes 1, 3, 5, etc.)
+                if (data.column.index >= 1 && (data.column.index - 1) % 2 === 0) {
+                    doc.setDrawColor(148, 163, 184); // Slate-400
+                    doc.setLineWidth(0.4);
+                    doc.line(data.cell.x, data.cell.y, data.cell.x, data.cell.y + data.cell.height);
+                    // Reset for other borders
+                    doc.setLineWidth(0.1);
                 }
             },
             alternateRowStyles: {
-                fillColor: [255, 255, 255]
+                fillColor: [255, 255, 255],
             },
-            margin: { top: 35 }
+            margin: { top: 35 },
         });
 
         doc.save(`turni_${departments.replace(/, /g, '_')}.pdf`);
@@ -143,6 +220,13 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
                         Esporta CSV
                     </button>
                     <button
+                        onClick={exportFluidaCSV}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-200 font-medium text-sm"
+                    >
+                        <CloudUpload className="w-4 h-4" />
+                        Esporta Fluida
+                    </button>
+                    <button
                         onClick={exportPDF}
                         className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-md shadow-red-200 font-medium text-sm"
                     >
@@ -155,13 +239,22 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
             <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
-                            <th className="p-4 font-semibold border-b border-slate-200">Matricola</th>
-                            <th className="p-4 font-semibold border-b border-slate-200">Dipendente</th>
-                            <th className="p-4 font-semibold border-b border-slate-200">Contratto</th>
-                            <th className="p-4 font-semibold border-b border-slate-200 text-center">Ore</th>
+                        {/* Row 1: fixed cols + day names (colSpan=2 each) */}
+                        <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                            <th rowSpan={2} className="p-3 font-semibold border-b border-r border-slate-200 align-middle whitespace-nowrap">Dipendente</th>
+                            <th rowSpan={2} className="p-3 font-semibold border-b border-r border-slate-200 align-middle text-center whitespace-nowrap">Contratto</th>
+                            <th rowSpan={2} className="p-3 font-semibold border-b border-r border-slate-200 align-middle text-center whitespace-nowrap">Ore</th>
                             {DAYS.map(day => (
-                                <th key={day} className="p-4 font-semibold border-b border-slate-200">{day}</th>
+                                <th key={day} colSpan={2} className="p-2 font-semibold border-b border-l-2 border-slate-300 text-center">{day}</th>
+                            ))}
+                        </tr>
+                        {/* Row 2: Mattina / Pomeriggio sub-headers */}
+                        <tr className="bg-slate-50 text-xs">
+                            {DAYS.map(day => (
+                                <React.Fragment key={day}>
+                                    <th className="px-1 py-1 font-semibold border-b border-l-2 border-slate-300 text-center bg-indigo-50 text-indigo-500 whitespace-nowrap">Mat.</th>
+                                    <th className="px-1 py-1 font-semibold border-b border-slate-200 text-center bg-amber-50 text-amber-500 whitespace-nowrap">Pom.</th>
+                                </React.Fragment>
                             ))}
                         </tr>
                     </thead>
@@ -174,18 +267,15 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
 
                             return (
                                 <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="p-4 font-medium text-slate-500 font-mono text-sm">
-                                        {emp.ID}
-                                    </td>
-                                    <td className="p-4 font-medium text-slate-800">
+                                    <td className="p-3 font-medium text-slate-800 whitespace-nowrap border-r border-slate-100">
                                         {emp.Nome}
-                                        <div className="text-xs text-slate-400 font-normal mt-0.5 max-w-[150px] truncate" title={emp['Esigenze/Preferenze']}>
+                                        <div className="text-xs text-slate-400 font-normal mt-0.5 max-w-[130px] truncate" title={emp['Esigenze/Preferenze']}>
                                             {emp['Esigenze/Preferenze']}
                                         </div>
                                     </td>
-                                    <td className="p-4 text-slate-600">{contract}h</td>
-                                    <td className="p-4 text-center">
-                                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${isMet && !isOver ? 'bg-green-100 text-green-700' :
+                                    <td className="p-3 text-slate-600 text-center whitespace-nowrap border-r border-slate-100">{contract}h</td>
+                                    <td className="p-3 text-center border-r border-slate-100">
+                                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${isMet && !isOver ? 'bg-green-100 text-green-700' :
                                             isOver ? 'bg-amber-100 text-amber-700' :
                                                 'bg-red-100 text-red-700'
                                             }`}>
@@ -193,22 +283,42 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
                                             {assigned}h
                                         </div>
                                     </td>
-                                    {DAYS.map(day => (
-                                        <td key={day} className="p-2">
-                                            <textarea
-                                                className={`w-full text-xs font-medium px-2 py-1 bg-indigo-50 text-indigo-700 rounded border border-indigo-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-center placeholder-slate-300 resize-none overflow-hidden ${(emp.shifts[day] || '').includes('/') ? 'min-h-[3.5rem] py-2' : 'h-8'
-                                                    }`}
-                                                value={(emp.shifts[day] || '').replace(/\s*\/\s*/g, '\n')}
-                                                placeholder="-"
-                                                rows={(emp.shifts[day] || '').includes('/') ? 2 : 1}
-                                                onChange={(e) => {
-                                                    // Convert newlines to " / " for storage
-                                                    const val = e.target.value.replace(/\n/g, ' / ');
-                                                    onShiftUpdate(idx, day, val);
-                                                }}
-                                            />
-                                        </td>
-                                    ))}
+                                    {DAYS.map(day => {
+                                        const raw = emp.shifts[day] || '';
+                                        const parts = raw.split(/\s*\/\s*/);
+                                        const mattina = parts[0]?.trim() || '';
+                                        const pomeriggio = parts[1]?.trim() || '';
+
+                                        const handleChange = (slot, val) => {
+                                            const m = slot === 'mat' ? val : mattina;
+                                            const p = slot === 'pom' ? val : pomeriggio;
+                                            const combined = p ? `${m} / ${p}` : m;
+                                            onShiftUpdate(idx, day, combined);
+                                        };
+
+                                        return (
+                                            <React.Fragment key={day}>
+                                                <td className="p-1 border-l-2 border-slate-200">
+                                                    <input
+                                                        type="text"
+                                                        className="w-full text-xs font-medium px-1.5 py-1.5 bg-indigo-50 text-indigo-700 rounded border border-indigo-100 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none transition-all text-center placeholder-indigo-200 min-w-[96px] whitespace-nowrap"
+                                                        value={mattina}
+                                                        placeholder="-"
+                                                        onChange={(e) => handleChange('mat', e.target.value)}
+                                                    />
+                                                </td>
+                                                <td className="p-1">
+                                                    <input
+                                                        type="text"
+                                                        className="w-full text-xs font-medium px-1.5 py-1.5 bg-amber-50 text-amber-700 rounded border border-amber-100 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all text-center placeholder-amber-200 min-w-[96px] whitespace-nowrap"
+                                                        value={pomeriggio}
+                                                        placeholder="-"
+                                                        onChange={(e) => handleChange('pom', e.target.value)}
+                                                    />
+                                                </td>
+                                            </React.Fragment>
+                                        );
+                                    })}
                                 </tr>
                             );
                         })}

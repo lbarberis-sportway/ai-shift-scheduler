@@ -14,10 +14,9 @@ function App() {
     setIsGenerating(true);
     setCurrentSettings(settings);
     
-    // In produzione su Vercel, faremo chiamate alla stessa origine (creando un proxy/rewrite in vercel.json)
-    // In dev locale, usiamo il server Python locale
-    const isDev = import.meta.env.DEV;
-    const apiUrl = isDev ? 'http://localhost:8000/optimize' : '/api/optimize';
+    // Usa il backend su Render se definito nelle variabili d'ambiente, altrimenti usa localhost
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const apiUrl = `${baseUrl.replace(/\/$/, '')}/optimize`;
     
     try {
       const response = await fetch(apiUrl, {

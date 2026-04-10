@@ -22,10 +22,20 @@ API_PREFIX = "/api" if os.environ.get("VERCEL") else ""
 
 app = FastAPI()
 
-# Enable CORS for the React frontend
+# Sicurezza CORS: accetta accessi solo dal tuo Frontend su Vercel o locale
+frontend_url = os.environ.get("FRONTEND_URL")
+if frontend_url:
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        frontend_url.rstrip('/')
+    ]
+else:
+    allowed_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

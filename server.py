@@ -145,6 +145,12 @@ async def stats():
     """Get pattern database statistics."""
     return get_stats()
 
+@app.get("/")
+@app.head("/")
+async def root():
+    """Health check per Render.com"""
+    return {"status": "ok", "message": "Backend AI is running on Render!"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

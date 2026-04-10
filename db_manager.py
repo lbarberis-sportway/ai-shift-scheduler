@@ -187,7 +187,7 @@ def learn_patterns(employees, store_open_str='09:30', store_close_str='19:30', s
                     frequency = shift_patterns.frequency + 1,
                     last_seen = excluded.last_seen
             """
-            execute_query(db, query_sp, (seg_key, seg_json, total_min, slot, now, now, now))
+            execute_query(db, query_sp, (seg_key, seg_json, total_min, slot, now, now))
             patterns_learned += 1
             
             query_ep = """
@@ -198,7 +198,7 @@ def learn_patterns(employees, store_open_str='09:30', store_close_str='19:30', s
                     frequency = employee_preferences.frequency + 1,
                     last_seen = excluded.last_seen
             """
-            execute_query(db, query_ep, (emp_id, emp_name, seg_key, day_name, now, now))
+            execute_query(db, query_ep, (emp_id, emp_name, seg_key, day_name, now))
     
     query_log = """
         INSERT INTO import_log (import_date, num_employees, num_patterns_learned, source_file)

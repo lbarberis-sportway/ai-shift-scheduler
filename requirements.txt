@@ -2,4 +2,4 @@ fastapi
 uvicorn
 ortools
 pydantic
-psycopg2-binary
+pg8000

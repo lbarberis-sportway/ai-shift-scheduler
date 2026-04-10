@@ -17,8 +17,8 @@ LOCAL_DB_PATH = os.path.join(LOCAL_DB_DIR, 'scheduler.db')
 DB_URL = os.environ.get("DATABASE_URL")
 
 try:
-    import pg8000.dbapi
-    from urllib.parse import urlparse
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
 except ImportError:
     pass
 
@@ -27,15 +27,8 @@ import sqlite3
 def get_connection():
     """Get a connection to PostgreSQL if configured, otherwise SQLite."""
     if DB_URL:
-        # Use Postgres (pg8000)
-        url = urlparse(DB_URL)
-        conn = pg8000.dbapi.connect(
-            user=url.username,
-            password=url.password,
-            host=url.hostname,
-            port=url.port or 5432,
-            database=url.path[1:]
-        )
+        # Use Postgres
+        conn = psycopg2.connect(DB_URL)
         _init_postgres_schema(conn)
         return {"conn": conn, "type": "postgres"}
     else:
@@ -56,18 +49,13 @@ def execute_query(db, query, params=(), fetchall=False, fetchone=False, commit=F
         # Translate '?' to '%s'
         pg_query = query.replace('?', '%s')
         
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(pg_query, params)
         res = None
         if fetchall:
-            # Manually act like RealDictCursor
-            cols = [desc[0] for desc in cur.description]
-            res = [dict(zip(cols, row)) for row in cur.fetchall()]
+            res = cur.fetchall()
         elif fetchone:
-            row = cur.fetchone()
-            if row:
-                cols = [desc[0] for desc in cur.description]
-                res = dict(zip(cols, row))
+            res = cur.fetchone()
         
         if commit:
             conn.commit()

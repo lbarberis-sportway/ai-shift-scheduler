@@ -7,4 +7,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase credentials missing. Auth will not work properly.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Check if we have the credentials before creating the client to avoid hard crashes
+const isConfigured = supabaseUrl && supabaseAnonKey
+
+export const supabase = isConfigured 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : { auth: { getSession: async () => ({ data: { session: null } }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) } }

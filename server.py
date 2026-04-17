@@ -51,7 +51,7 @@ SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET")
 # Initialize JWK Client if SUPABASE_URL is provided
 jwks_client = None
 if SUPABASE_URL:
-    jwks_url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/jwks"
+    jwks_url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/.well-known/jwks.json"
     # Supabase Kong gateway requires the apikey header even for JWKS
     headers = {"apikey": os.environ.get("SUPABASE_ANON_KEY", "")}
     jwks_client = jwt.PyJWKClient(jwks_url, headers=headers)

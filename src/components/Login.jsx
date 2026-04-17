@@ -59,7 +59,7 @@ export const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all"
-                    placeholder="nome.cognome@sportway.it"
+                    placeholder="nome.cognome@sportway.net"
                   />
                 </div>
               </div>

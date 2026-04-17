@@ -8,8 +8,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Check if we have the credentials before creating the client to avoid hard crashes
-const isConfigured = supabaseUrl && supabaseAnonKey
+const isConfigured = !!(supabaseUrl && supabaseAnonKey)
 
 export const supabase = isConfigured 
   ? createClient(supabaseUrl, supabaseAnonKey)
-  : { auth: { getSession: async () => ({ data: { session: null } }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) } }
+  : { 
+      auth: { 
+        getSession: async () => ({ data: { session: null }, error: null }), 
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+        signInWithPassword: async () => {
+          alert("Configurazione Mancante: Le variabili VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY non sono state trovate su Vercel.");
+          return { data: {}, error: { message: "Configurazione mancante" } };
+        }
+      } 
+    }

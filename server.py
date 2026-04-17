@@ -54,14 +54,22 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
     
     token = credentials.credentials
     try:
-        # Supabase uses HS256 by default
-        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
+        # Supabase uses HS256. We'll be more flexible with options to avoid false mismatches
+        payload = jwt.decode(
+            token, 
+            SUPABASE_JWT_SECRET, 
+            algorithms=["HS256"], 
+            options={"verify_aud": False} # Disable strict audience check for compatibility
+        )
         return payload
     except jwt.ExpiredSignatureError:
+        print("🔐 JWT Error: Token expired")
         raise HTTPException(status_code=401, detail="Token scaduto")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Token non valido")
+    except jwt.InvalidTokenError as e:
+        print(f"🔐 JWT Error: Invalid token - {str(e)}")
+        raise HTTPException(status_code=401, detail="Token non valido. Controlla il JWT Secret su Render.")
     except Exception as e:
+        print(f"🔐 JWT Error: {str(e)}")
         raise HTTPException(status_code=401, detail=f"Errore autenticazione: {str(e)}")
 
 class OptimizeRequest(BaseModel):

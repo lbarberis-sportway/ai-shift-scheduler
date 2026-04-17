@@ -43,34 +43,50 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# JWT Verification logic for Supabase
+# JWT Verification logic for Supabase (Dynamic JWKS)
 security = HTTPBearer()
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET")
 
+# Initialize JWK Client if SUPABASE_URL is provided
+jwks_client = None
+if SUPABASE_URL:
+    jwks_url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/jwks"
+    jwks_client = jwt.PyJWKClient(jwks_url)
+
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if not SUPABASE_JWT_SECRET:
-        # If secret is not set, we're likely in local dev without auth
+    # Local fallback or old method if URL is missing
+    if not SUPABASE_URL and not SUPABASE_JWT_SECRET:
         return True
     
     token = credentials.credentials
+    
     try:
-        # Supabase uses HS256. We'll be more flexible with options to avoid false mismatches
-        payload = jwt.decode(
-            token, 
-            SUPABASE_JWT_SECRET, 
-            algorithms=["HS256"], 
-            options={"verify_aud": False} # Disable strict audience check for compatibility
-        )
+        if jwks_client:
+            # Modern way: fetch the public key from Supabase JWKS
+            signing_key = jwks_client.get_signing_key_from_jwt(token)
+            payload = jwt.decode(
+                token, 
+                signing_key.key, 
+                algorithms=["HS256", "RS256", "ES256"], 
+                options={"verify_aud": False}
+            )
+        else:
+            # Legacy way: use the static secret
+            payload = jwt.decode(
+                token, 
+                SUPABASE_JWT_SECRET, 
+                algorithms=["HS256"], 
+                options={"verify_aud": False}
+            )
         return payload
-    except jwt.ExpiredSignatureError:
-        print("🔐 JWT Error: Token expired")
-        raise HTTPException(status_code=401, detail="Token scaduto")
-    except jwt.InvalidTokenError as e:
-        print(f"🔐 JWT Error: Invalid token - {str(e)}")
-        raise HTTPException(status_code=401, detail="Token non valido. Controlla il JWT Secret su Render.")
+        
     except Exception as e:
-        print(f"🔐 JWT Error: {str(e)}")
-        raise HTTPException(status_code=401, detail=f"Errore autenticazione: {str(e)}")
+        print(f"🔐 JWT Auth Error: {str(e)}")
+        raise HTTPException(
+            status_code=401, 
+            detail=f"Autenticazione fallita: {str(e)}. Controlla SUPABASE_URL su Render."
+        )
 
 class OptimizeRequest(BaseModel):
     employees: List[Dict[str, Any]]

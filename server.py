@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import sys
 import os
+import jwt
 
 # Add the current directory to path to import solver
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -41,13 +43,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# JWT Verification logic for Supabase
+security = HTTPBearer()
+SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET")
+
+async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not SUPABASE_JWT_SECRET:
+        # If secret is not set, we're likely in local dev without auth
+        return True
+    
+    token = credentials.credentials
+    try:
+        # Supabase uses HS256 by default
+        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token scaduto")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token non valido")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Errore autenticazione: {str(e)}")
+
 class OptimizeRequest(BaseModel):
     employees: List[Dict[str, Any]]
     settings: Dict[str, Any]
 
 @app.post("/api/optimize")
 @app.post("/optimize")
-async def optimize(request: OptimizeRequest):
+async def optimize(request: OptimizeRequest, user=Depends(verify_token)):
     try:
         # === STEP 1: LEARN from the imported CSV ===
         # Store all patterns from this import into the database
@@ -141,7 +164,7 @@ async def optimize(request: OptimizeRequest):
 
 @app.get("/api/stats")
 @app.get("/stats")
-async def stats():
+async def stats(user=Depends(verify_token)):
     """Get pattern database statistics."""
     return get_stats()
 

@@ -1,14 +1,36 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UploadSection } from './components/UploadSection';
 import { ScheduleTable } from './components/ScheduleTable';
-import { BrainCircuit } from 'lucide-react';
+import { Login } from './components/Login';
+import { supabase } from './lib/supabase';
+import { BrainCircuit, LogOut, User } from 'lucide-react';
 import { SpeedInsights } from "@vercel/speed-insights/react"
 
 function App() {
+  const [session, setSession] = useState(null);
   const [schedule, setSchedule] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentSettings, setCurrentSettings] = useState(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setSchedule(null);
+  };
 
   const handleDataLoaded = async (data, settings) => {
     setIsGenerating(true);
@@ -23,6 +45,7 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
         },
         body: JSON.stringify({
           employees: data,
@@ -37,10 +60,6 @@ function App() {
 
       const result = await response.json();
       
-      // Transform incoming data to match the expected format in the UI
-      // The solver returns { Nome, shifts: { Lun, ... }, assignedHours }
-      // We need to ensure it matches what the UI components expect.
-      // Helper function to calculate exact hours from a shift strings object
       const calculateTotalHours = (shifts) => {
         let totalHours = 0;
         Object.values(shifts).forEach(shift => {
@@ -73,13 +92,13 @@ function App() {
         ID: emp.ID,
         Nome: emp.Nome,
         shifts: emp.shifts,
-        assignedHours: calculateTotalHours(emp.shifts) // Override server value to guarantee UI consistency
+        assignedHours: calculateTotalHours(emp.shifts)
       }));
 
       setSchedule(formattedSchedule);
     } catch (error) {
       console.error("Optimization failed:", error);
-      alert("Errore nell'ottimizzazione: " + error.message + "\nAssicurati che il server Python sia avviato.");
+      alert("Errore nell'ottimizzazione: " + error.message + "\nAssicurati che il server Python sia avviato e di aver effettuato il login correttamente.");
       setSchedule(null);
     } finally {
       setIsGenerating(false);
@@ -96,7 +115,6 @@ function App() {
       const emp = { ...newSchedule[empIndex] };
       emp.shifts = { ...emp.shifts, [day]: newShift };
 
-      // Recalculate total hours using same exact logic
       let totalHours = 0;
       Object.values(emp.shifts).forEach(shift => {
         if (!shift) return;
@@ -129,7 +147,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20">
-      {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -140,54 +157,74 @@ function App() {
               AI Scheduler
             </h1>
           </div>
-          <div className="text-xs text-slate-500 hidden sm:block">
-            Gestione Turni Intelligente
-          </div>
+          
+          {session ? (
+            <div className="flex items-center gap-4">
+              <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+                <User className="w-3.5 h-3.5" />
+                {session.user.email}
+              </div>
+              <button 
+                onClick={handleLogout}
+                className="flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-red-600 transition-colors p-2 hover:bg-red-50 rounded-lg"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden xs:inline">Esci</span>
+              </button>
+            </div>
+          ) : (
+            <div className="text-xs text-slate-500 hidden sm:block">
+              Area Protetta
+            </div>
+          )}
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 sm:pt-10">
-        {!schedule && !isGenerating && (
-          <div className="text-center space-y-4 mb-10">
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-slate-800 tracking-tight leading-tight">
-              Ottimizza i turni con <span className="text-red-600">l'AI</span>
-            </h2>
-            <p className="text-slate-600 max-w-2xl mx-auto text-base sm:text-lg leading-relaxed">
-              Carica il file CSV con i dati dei dipendenti. Il nostro sistema analizzerà contratti e preferenze per generare la settimana lavorativa perfetta.
-            </p>
-            <UploadSection onDataLoaded={handleDataLoaded} />
+        {!session ? (
+          <Login />
+        ) : (
+          <>
+            {!schedule && !isGenerating && (
+              <div className="text-center space-y-4 mb-10">
+                <h2 className="text-2xl sm:text-4xl font-extrabold text-slate-800 tracking-tight leading-tight">
+                  Bentornato su <span className="text-red-600">AI Scheduler</span>
+                </h2>
+                <p className="text-slate-600 max-w-2xl mx-auto text-base sm:text-lg leading-relaxed">
+                  Carica il file CSV dei dipendenti per generare la settimana ottimizzata.
+                </p>
+                <UploadSection onDataLoaded={handleDataLoaded} />
 
-            <div className="mt-8 sm:mt-12 text-left bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm max-w-2xl mx-auto">
-              <h4 className="font-semibold text-slate-900 mb-2">Formato CSV Richiesto:</h4>
-              <code className="block bg-slate-100 p-3 rounded text-xs text-slate-700 font-mono overflow-x-auto whitespace-pre sm:whitespace-normal">
-                ID; Nome Cognome; Ore Contratto; Esigenze/Preferenze; Lun; Mar; ...; Dom; Lun_W1; Mar_W1; ...; Dom_W3
-              </code>
-              <p className="text-xs text-slate-500 mt-2">
-                Le colonne dei giorni (Lun...Dom) sono per la settimana da generare. Le colonne _W1, _W2, _W3 contengono lo storico.
-              </p>
-            </div>
-          </div>
-        )}
+                <div className="mt-8 sm:mt-12 text-left bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm max-w-2xl mx-auto">
+                  <h4 className="font-semibold text-slate-900 mb-2">Formato CSV Richiesto:</h4>
+                  <code className="block bg-slate-100 p-3 rounded text-xs text-slate-700 font-mono overflow-x-auto whitespace-pre sm:whitespace-normal">
+                    ID; Nome Cognome; Ore Contratto; Esigenze/Preferenze; Lun; Mar; ...; Dom; Lun_W1; Mar_W1; ...; Dom_W3
+                  </code>
+                </div>
+              </div>
+            )}
 
-        {isGenerating && (
-          <div className="flex flex-col items-center justify-center py-20 animate-in fade-in duration-700">
-            <div className="relative w-20 h-20 mb-8">
-              <div className="absolute inset-0 border-4 border-red-100 rounded-full"></div>
-              <div className="absolute inset-0 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-              <BrainCircuit className="absolute inset-0 m-auto w-8 h-8 text-red-600 animate-pulse" />
-            </div>
-            <h3 className="text-2xl font-bold text-slate-800 mb-2">Analisi in corso...</h3>
-            <p className="text-slate-500">Sto calcolando le combinazioni migliori per i turni.</p>
-          </div>
-        )}
+            {isGenerating && (
+              <div className="flex flex-col items-center justify-center py-20 animate-in fade-in duration-700">
+                <div className="relative w-20 h-20 mb-8">
+                  <div className="absolute inset-0 border-4 border-red-100 rounded-full"></div>
+                  <div className="absolute inset-0 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                  <BrainCircuit className="absolute inset-0 m-auto w-8 h-8 text-red-600 animate-pulse" />
+                </div>
+                <h3 className="text-2xl font-bold text-slate-800 mb-2">Analisi in corso...</h3>
+                <p className="text-slate-500">Sto calcolando le combinazioni migliori per i turni.</p>
+              </div>
+            )}
 
-        {schedule && (
-          <ScheduleTable 
-            schedule={schedule} 
-            onReset={handleReset} 
-            onShiftUpdate={handleShiftUpdate}
-            settings={currentSettings}
-          />
+            {schedule && (
+              <ScheduleTable 
+                schedule={schedule} 
+                onReset={handleReset} 
+                onShiftUpdate={handleShiftUpdate}
+                settings={currentSettings}
+              />
+            )}
+          </>
         )}
       </main>
       <SpeedInsights />

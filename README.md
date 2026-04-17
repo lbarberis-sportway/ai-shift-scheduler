@@ -6,18 +6,18 @@ Un'applicazione professionale per la generazione e l'ottimizzazione automatica d
 
 - **Motore AI Avanzato**: Utilizza il solver CP-SAT di Google per risolvere vincoli complessi e ottimizzare la distribuzione delle ore.
 - **Riconoscimento Pattern**: L'IA impara dai turni passati contenuti nei file CSV per suggerire programmazioni familiari e realistiche.
-- **Apprendimento Continuo (Memory)**: Database SQLite integrato che accumula conoscenza ad ogni importazione, diventando sempre più preciso nel tempo.
+- **Apprendimento Continuo (Memory)**: Database Cloud su **Supabase (PostgreSQL)** che accumula conoscenza ad ogni importazione, diventando sempre più preciso nel tempo senza perdita di dati tra i riavvii.
 - **Rispetto dei Contratti**: Garantisce al 100% che ogni dipendente faccia le ore esatte previste dal contratto.
 - **Copertura Totale**: Algoritmo progettato per eliminare i "buchi" di copertura, garantendo presenza costante in apertura, chiusura e durante tutto l'orario continuato.
 - **Rotazione Intelligente**: Bilanciamento automatico tra turni di mattina e pomeriggio per garantire equità tra i dipendenti.
-- **Interfaccia Premium**: WebApp moderna in React con design curato, supporto per esportazione PDF/CSV e modifiche manuali in tempo reale.
+- **Interfaccia Premium**: WebApp moderna in React (Vite) con design curato, supporto per esportazione PDF/CSV (Fluida) e modifiche manuali in tempo reale.
 
-## 🏗️ Architettura Tecnica
+## 🏗️ Architettura Professionale
 
-- **Frontend**: React + Vite + Tailwind CSS (UI veloce e responsiva).
-- **Backend / AI**: Python con FastAPI e Google OR-Tools (Motore di vincolo logico).
-- **Persistence**: SQLite (Per lo storage a lungo termine dei pattern di lavoro).
-- **Deployment**: Pronto per Vercel (Frontend + Serverless Functions).
+- **Frontend**: React + Vite + Tailwind CSS - Hostato su **Vercel** per la massima velocità di caricamento.
+- **Backend AI**: Python con FastAPI e Google OR-Tools - Hostato su **Render.com** per calcoli complessi e stabilità superiore.
+- **Database Professionale**: **Supabase (PostgreSQL)** - Per una gestione sicura, persistente e veloce della "memoria" dell'IA.
+- **Sicurezza & Velocità**: Connessioni cifrate SSL, ottimizzazione delle performance e deployment costante direttamente da GitHub.
 
 ## 🚀 Guida Rapida
 
@@ -46,9 +46,9 @@ npm run dev
 4. Esporta il risultato in **PDF professionale** o **CSV** per Excel.
 
 ## 🔧 Manutenzione e Debug
-- Il database dei pattern si trova in `database/scheduler.db`.
-- Puoi controllare le statistiche dell'IA visitando `http://localhost:8000/stats`.
-- Per le istruzioni di caricamento online su GitHub/Vercel, consulta il file `DEPOLOYMENT_GUIDE_IT.md`.
+- **Database Cloud**: La gestione dei pattern avviene su Supabase. Puoi monitorare i dati direttamente dalla dashboard di Supabase.
+- **Backend Logs**: I log del motore AI sono visibili nella dashboard di Render.com.
+- **Statistiche**: Puoi controllare le statistiche dell'IA visitando `[URL-BACKEND]/stats`.
 
 ---
-*Sviluppato con dedizione per ottimizzare il lavoro e il tempo del team.*
+*Sviluppato con dedizione per ottimizzare il lavoro e il tempo del team Sportway.*

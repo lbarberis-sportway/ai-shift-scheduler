@@ -54,4 +54,4 @@ Questa guida spiega come configurare l'architettura moderna e sicura per il tuo 
 - **Deploy Automatico**: Ogni volta che carichi codice su GitHub, il sito si aggiorna da solo sia sul fronte che sul retro!
 
 ---
-*Per supporto tecnico o modifiche, consulta la documentazione interna.*
+Per supporto tecnico o modifiche, consulta la documentazione interna.

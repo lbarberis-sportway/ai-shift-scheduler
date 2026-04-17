@@ -52,7 +52,9 @@ SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET")
 jwks_client = None
 if SUPABASE_URL:
     jwks_url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/jwks"
-    jwks_client = jwt.PyJWKClient(jwks_url)
+    # Supabase Kong gateway requires the apikey header even for JWKS
+    headers = {"apikey": os.environ.get("SUPABASE_ANON_KEY", "")}
+    jwks_client = jwt.PyJWKClient(jwks_url, headers=headers)
 
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     # Local fallback or old method if URL is missing

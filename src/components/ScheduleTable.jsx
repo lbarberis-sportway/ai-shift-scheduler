@@ -123,7 +123,7 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings, star
             const rangeStr = `Settimana dal ${getFullDate(startDate, 0)} al ${getFullDate(startDate, 6)}`;
             doc.setFontSize(11);
             doc.setTextColor(51, 65, 85); // Slate-700
-            doc.text(rangeStr, 14, 28);
+            doc.text(rangeStr, 14, 34);
         }
 
         // Splits "HH:MM-HH:MM / HH:MM-HH:MM" or "HH:MM-HH:MM||HH:MM-HH:MM"
@@ -150,7 +150,7 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings, star
         const dayLabels = ['LUNEDÌ', 'MARTEDÌ', 'MERCOLEDÌ', 'GIOVEDÌ', 'VENERDÌ', 'SABATO', 'DOMENICA'];
 
         autoTable(doc, {
-            startY: 35,
+            startY: 40,
             head: [
                 // Row 1: day names spanning 2 cols each, Nome spanning 2 rows
                 [

@@ -12,6 +12,7 @@ function App() {
   const [schedule, setSchedule] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentSettings, setCurrentSettings] = useState(null);
+  const [scheduleDate, setScheduleDate] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -35,6 +36,7 @@ function App() {
   const handleDataLoaded = async (data, settings) => {
     setIsGenerating(true);
     setCurrentSettings(settings);
+    setScheduleDate(settings.startDate);
     
     // Usa il backend su Render se definito nelle variabili d'ambiente, altrimenti usa localhost
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -222,6 +224,7 @@ function App() {
                 onReset={handleReset} 
                 onShiftUpdate={handleShiftUpdate}
                 settings={currentSettings}
+                startDate={scheduleDate}
               />
             )}
           </>

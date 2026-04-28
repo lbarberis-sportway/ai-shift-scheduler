@@ -68,11 +68,18 @@ function MultiSelect({ label, options, selected, onChange, placeholder = "Selezi
 }
 
 export function UploadSection({ onDataLoaded }) {
+    const getNextMonday = () => {
+        const d = new Date();
+        d.setDate(d.getDate() + ((7 - d.getDay() + 1) % 7 || 7));
+        return d.toISOString().split('T')[0];
+    };
+
     const [settings, setSettings] = React.useState({
         closedDays: [],
         openTime: '09:30',
         closeTime: '19:30',
-        departments: ['Cassa']
+        departments: ['Cassa'],
+        startDate: getNextMonday()
     });
     const [parsedData, setParsedData] = React.useState(null);
     const [fileName, setFileName] = React.useState('');
@@ -178,6 +185,15 @@ export function UploadSection({ onDataLoaded }) {
                                     className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50"
                                 />
                             </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Lunedì di Inizio</label>
+                            <input
+                                type="date"
+                                value={settings.startDate}
+                                onChange={(e) => setSettings({ ...settings, startDate: e.target.value })}
+                                className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-red-500 outline-none"
+                            />
                         </div>
                     </div>
                 </div>

@@ -6,7 +6,21 @@ import { DAYS } from '../utils/constants';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
+export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings, startDate }) {
+
+    const getFormattedDate = (baseDate, dayIdx) => {
+        if (!baseDate) return '';
+        const d = new Date(baseDate);
+        d.setDate(d.getDate() + dayIdx);
+        return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+    };
+
+    const getFullDate = (baseDate, dayIdx) => {
+        if (!baseDate) return '';
+        const d = new Date(baseDate);
+        d.setDate(d.getDate() + dayIdx);
+        return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
 
     const exportCSV = () => {
         // Flatten for export with EXACT columns requested
@@ -99,9 +113,18 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
         const departments = settings?.departments?.join(', ') || 'Nessun reparto specificato';
         doc.text(`Reparto: ${departments}`, 14, 28);
 
-        const date = new Date().toLocaleDateString('it-IT');
+        const generationDate = new Date().toLocaleDateString('it-IT');
         doc.setFontSize(10);
-        doc.text(`Data Generazione: ${date}`, pageWidth - 14, 28, { align: 'right' });
+        doc.text(`Generato il: ${generationDate}`, pageWidth - 14, 20, { align: 'right' });
+
+        if (startDate) {
+            const endD = new Date(startDate);
+            endD.setDate(endD.getDate() + 6);
+            const rangeStr = `Settimana dal ${getFullDate(startDate, 0)} al ${getFullDate(startDate, 6)}`;
+            doc.setFontSize(11);
+            doc.setTextColor(51, 65, 85); // Slate-700
+            doc.text(rangeStr, 14, 28);
+        }
 
         // Splits "HH:MM-HH:MM / HH:MM-HH:MM" or "HH:MM-HH:MM||HH:MM-HH:MM"
         // into [mattina, pomeriggio]
@@ -132,7 +155,11 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
                 // Row 1: day names spanning 2 cols each, Nome spanning 2 rows
                 [
                     { content: 'DIPENDENTE', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fontStyle: 'bold' } },
-                    ...dayLabels.map(d => ({ content: d, colSpan: 2, styles: { halign: 'center' } })),
+                    ...dayLabels.map((d, i) => ({ 
+                        content: startDate ? `${d} ${getFormattedDate(startDate, i)}` : d, 
+                        colSpan: 2, 
+                        styles: { halign: 'center' } 
+                    })),
                 ],
                 // Row 2: Mattina | Pomeriggio repeated for each day
                 [
@@ -194,7 +221,8 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
             margin: { top: 35 },
         });
 
-        doc.save(`turni_${departments.replace(/, /g, '_')}.pdf`);
+        const dateSuffix = startDate ? `_${getFormattedDate(startDate, 0).replace('/', '-')}_${getFormattedDate(startDate, 6).replace('/', '-')}` : '';
+        doc.save(`turni_${departments.replace(/, /g, '_')}${dateSuffix}.pdf`);
     };
 
     return (
@@ -244,8 +272,13 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings }) {
                             <th rowSpan={2} className="p-3 font-semibold border-b border-r border-slate-200 align-middle whitespace-nowrap">Dipendente</th>
                             <th rowSpan={2} className="p-3 font-semibold border-b border-r border-slate-200 align-middle text-center whitespace-nowrap">Contratto</th>
                             <th rowSpan={2} className="p-3 font-semibold border-b border-r border-slate-200 align-middle text-center whitespace-nowrap">Ore</th>
-                            {DAYS.map(day => (
-                                <th key={day} colSpan={2} className="p-2 font-semibold border-b border-l-2 border-slate-300 text-center">{day}</th>
+                            {DAYS.map((day, i) => (
+                                <th key={day} colSpan={2} className="p-2 font-semibold border-b border-l-2 border-slate-300 text-center">
+                                    <div className="flex flex-col items-center">
+                                        <span>{day}</span>
+                                        {startDate && <span className="text-[10px] font-normal text-slate-400">{getFormattedDate(startDate, i)}</span>}
+                                    </div>
+                                </th>
                             ))}
                         </tr>
                         {/* Row 2: Mattina / Pomeriggio sub-headers */}

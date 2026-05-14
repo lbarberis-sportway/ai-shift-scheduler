@@ -496,11 +496,19 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
         
         if i in fixed_schedules_map:
             # For fixed part-timers, base target is their CSV sum
+            day_map = fixed_schedules_map[i]
             base_target = sum(
                 sum(s['end'] - s['start'] for s in segs)
-                for segs in fixed_schedules_map[i].values()
+                for segs in day_map.values()
             )
-            target_min = max(0, base_target - deduction)
+            # Deduction must match the exact hours of the fixed shifts being removed
+            fixed_deduction = 0
+            for d_idx, segs in day_map.items():
+                d_name = DAY_NAMES[d_idx].lower()
+                if d_name in vacations:
+                    fixed_deduction += sum(s['end'] - s['start'] for s in segs)
+            
+            target_min = max(0, base_target - fixed_deduction)
         else:
             target_min = max(0, people[i]['contract_min'] - deduction)
 

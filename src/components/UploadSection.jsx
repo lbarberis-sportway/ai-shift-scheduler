@@ -86,7 +86,7 @@ export function UploadSection({ onDataLoaded }) {
 
     const allDepartments = [
         'Cassa', 'Montagna', 'Fitness', 'Scarpe', 'Bike',
-        'Abbigliamento', 'Young', 'RDK', 'Bar', 'Cucina'
+        'Abbigliamento', 'Young'
     ];
 
     const daysList = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
@@ -228,7 +228,7 @@ export function UploadSection({ onDataLoaded }) {
 
                     <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
                         <FileSpreadsheet className="w-4 h-4" />
-                        <span>Formato: ID; Nome Cognome; Ore Contratto; Riposo Fisso; Ferie; ...</span>
+                        <span>Formato: ID; Nome Cognome; Ore Contratto; Riposo Fisso; Ferie; Esigenze/Preferenze; Lun; ...; Dom</span>
                     </div>
                 </label>
             </div>

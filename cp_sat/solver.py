@@ -447,11 +447,23 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
     
     # C3. Exact contract hours
     for i in range(n):
+        vacations = (people[i].get('vacation_days', '') or '').lower()
+        deduction = 0
+        if vacations:
+            for d_idx, d_name in enumerate(DAY_NAMES):
+                if d_name.lower() in vacations:
+                    if d_name.lower() == 'lun':
+                        deduction += 5 * 60
+                    else:
+                        deduction += 7 * 60
+        
+        target_min = max(0, people[i]['contract_min'] - deduction)
+
         total_min = sum(
             shift_types[s]['total_min'] * assign[i][d][s]
             for d in range(num_days) for s in range(num_shift_types)
         )
-        model.Add(total_min == people[i]['contract_min'])
+        model.Add(total_min == target_min)
     
     # C4. Daily max 8h (already filtered shift types, but enforce)
     for i in range(n):
@@ -498,6 +510,22 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
                 if d_name.lower() in fixed_rests:
                     for s in range(num_shift_types):
                         model.Add(assign[i][d_idx][s] == 0)
+                        
+        vacations = (people[i].get('vacation_days', '') or '').lower()
+        if vacations:
+            for d_idx, d_name in enumerate(DAY_NAMES):
+                if d_name.lower() in vacations:
+                    for s in range(num_shift_types):
+                        model.Add(assign[i][d_idx][s] == 0)
+                        
+    # C8. Mondays: exactly 5 hours, no split shifts
+    if 'Lun' in DAY_NAMES:
+        lun_idx = DAY_NAMES.index('Lun')
+        for i in range(n):
+            for s in range(num_shift_types):
+                st = shift_types[s]
+                if st['total_min'] != 5 * 60 or st['slot'] == 'split':
+                    model.Add(assign[i][lun_idx][s] == 0)
     
     # ===== OBJECTIVE: ROTATION + PATTERN PREFERENCE =====
     objective = []
@@ -695,6 +723,7 @@ def read_input(path):
             'contract_hours': contract_hours,
             'preferences': emp.get('Esigenze/Preferenze', ''),
             'fixed_rests': str(emp.get('Riposo Fisso', '')).strip(),
+            'vacation_days': str(emp.get('Ferie', '')).strip(),
             'history': history,
             'raw': emp,  # Keep original data for pattern extraction
         })

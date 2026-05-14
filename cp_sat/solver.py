@@ -249,6 +249,40 @@ def build_fallback_shifts(store_open, store_close):
     return shifts
 
 
+def extract_fixed_schedules(people, store_open, store_close):
+    """
+    Identifies employees with 'partime fisso' in preferences and
+    extracts their schedule directly from the CSV (raw data).
+    """
+    fixed_patterns = []
+    fixed_map = {} # i -> {day_idx: segments}
+    
+    for i, p in enumerate(people):
+        prefs = (p.get('preferences', '') or '').lower()
+        if 'partime fisso' in prefs:
+            day_segs = {}
+            raw = p.get('raw', {})
+            for d_idx, d_name in enumerate(DAY_NAMES):
+                # We try 'Lun' or 'Lun_W1' as keys
+                shift_str = raw.get(d_name, '') or raw.get(f"{d_name}_W1", '')
+                segs = parse_shift_segments(shift_str)
+                day_segs[d_idx] = segs
+                
+                if segs:
+                    total_min = sum(s['end'] - s['start'] for s in segs)
+                    slot = classify_slot(segs, store_open, store_close)
+                    fixed_patterns.append({
+                        'name': f"fixed_{d_name}",
+                        'segments': segs,
+                        'total_min': total_min,
+                        'slot': slot,
+                        'count': 100
+                    })
+            fixed_map[i] = day_segs
+            
+    return fixed_patterns, fixed_map
+
+
 def merge_and_deduplicate(db_patterns, extracted, fallback):
     """Merge patterns from 3 sources: DB (highest priority) > CSV > fallback."""
     seen_keys = set()
@@ -378,8 +412,11 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
     # 2. Generate fallback patterns for complete coverage
     fallback = build_fallback_shifts(store_open, store_close)
     
-    # 3. Merge: DB (accumulated) > CSV (current) > Fallback (generated)
-    shift_types = merge_and_deduplicate(db_patterns, extracted, fallback)
+    # 2.5 Extract part-time fixed schedules from CSV if requested
+    fixed_pats, fixed_schedules_map = extract_fixed_schedules(people, store_open, store_close)
+
+    # 3. Merge: DB (accumulated) > CSV (current) > Fallback (generated) > Fixed (PT)
+    shift_types = merge_and_deduplicate(db_patterns, extracted, fallback + fixed_pats)
     
     # Filter: only shifts that fit within store hours and <= 8h
     shift_types = [
@@ -447,17 +484,24 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
     
     # C3. Exact contract hours
     for i in range(n):
-        vacations = (people[i].get('vacation_days', '') or '').lower()
-        deduction = 0
-        if vacations:
-            for d_idx, d_name in enumerate(DAY_NAMES):
-                if d_name.lower() in vacations:
-                    if d_name.lower() == 'lun':
-                        deduction += 5 * 60
-                    else:
-                        deduction += 7 * 60
-        
-        target_min = max(0, people[i]['contract_min'] - deduction)
+        if i in fixed_schedules_map:
+            # For fixed part-timers, target is exactly what's written in the CSV
+            target_min = sum(
+                sum(s['end'] - s['start'] for s in segs)
+                for segs in fixed_schedules_map[i].values()
+            )
+        else:
+            vacations = (people[i].get('vacation_days', '') or '').lower()
+            deduction = 0
+            if vacations:
+                for d_idx, d_name in enumerate(DAY_NAMES):
+                    if d_name.lower() in vacations:
+                        if d_name.lower() == 'lun':
+                            deduction += 5 * 60
+                        else:
+                            deduction += 7 * 60
+            
+            target_min = max(0, people[i]['contract_min'] - deduction)
 
         total_min = sum(
             shift_types[s]['total_min'] * assign[i][d][s]
@@ -492,6 +536,9 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
     
     # C7. Preferences / blocked days / fixed rests
     for i in range(n):
+        if i in fixed_schedules_map:
+            continue # Skip preferences for fixed part-timers, they follow their CSV schedule
+            
         prefs = (people[i].get('preferences', '') or '').lower()
         fixed_rests = (people[i].get('fixed_rests', '') or '').lower()
         
@@ -522,10 +569,32 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
     if 'Lun' in DAY_NAMES:
         lun_idx = DAY_NAMES.index('Lun')
         for i in range(n):
+            if i in fixed_schedules_map:
+                continue # Skip PT fixed
             for s in range(num_shift_types):
                 st = shift_types[s]
                 if st['total_min'] != 5 * 60 or st['slot'] == 'split':
                     model.Add(assign[i][lun_idx][s] == 0)
+
+    # C9. Assignment Lock for Fixed Part-timers
+    for i, day_map in fixed_schedules_map.items():
+        for d_idx, segs in day_map.items():
+            if not segs:
+                # Must rest
+                for s in range(num_shift_types):
+                    model.Add(assign[i][d_idx][s] == 0)
+            else:
+                target_key = segments_to_key(segs)
+                found = False
+                for s in range(num_shift_types):
+                    st_key = segments_to_key(shift_types[s]['segments'])
+                    if st_key == target_key:
+                        model.Add(assign[i][d_idx][s] == 1)
+                        found = True
+                    else:
+                        model.Add(assign[i][d_idx][s] == 0)
+                if not found:
+                    print(f"CRITICAL: Could not find shift type for fixed PT {people[i]['name']} on day {d_idx}")
     
     # ===== OBJECTIVE: ROTATION + PATTERN PREFERENCE =====
     objective = []

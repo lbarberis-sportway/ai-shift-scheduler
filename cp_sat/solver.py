@@ -484,23 +484,24 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
     
     # C3. Exact contract hours
     for i in range(n):
+        vacations = (people[i].get('vacation_days', '') or '').lower()
+        deduction = 0
+        if vacations:
+            for d_idx, d_name in enumerate(DAY_NAMES):
+                if d_name.lower() in vacations:
+                    if d_name.lower() == 'lun':
+                        deduction += 5 * 60
+                    else:
+                        deduction += 7 * 60
+        
         if i in fixed_schedules_map:
-            # For fixed part-timers, target is exactly what's written in the CSV
-            target_min = sum(
+            # For fixed part-timers, base target is their CSV sum
+            base_target = sum(
                 sum(s['end'] - s['start'] for s in segs)
                 for segs in fixed_schedules_map[i].values()
             )
+            target_min = max(0, base_target - deduction)
         else:
-            vacations = (people[i].get('vacation_days', '') or '').lower()
-            deduction = 0
-            if vacations:
-                for d_idx, d_name in enumerate(DAY_NAMES):
-                    if d_name.lower() in vacations:
-                        if d_name.lower() == 'lun':
-                            deduction += 5 * 60
-                        else:
-                            deduction += 7 * 60
-            
             target_min = max(0, people[i]['contract_min'] - deduction)
 
         total_min = sum(
@@ -578,9 +579,11 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
 
     # C9. Assignment Lock for Fixed Part-timers
     for i, day_map in fixed_schedules_map.items():
+        vacations = (people[i].get('vacation_days', '') or '').lower()
         for d_idx, segs in day_map.items():
-            if not segs:
-                # Must rest
+            d_name = DAY_NAMES[d_idx].lower()
+            if not segs or d_name in vacations:
+                # Must rest (either CSV was empty or they have Ferie)
                 for s in range(num_shift_types):
                     model.Add(assign[i][d_idx][s] == 0)
             else:

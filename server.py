@@ -131,6 +131,7 @@ async def optimize(request: OptimizeRequest, user=Depends(verify_token)):
                 'contract_min': int(contract_hours * 60),
                 'contract_hours': contract_hours,
                 'preferences': emp.get('Esigenze/Preferenze', ''),
+                'fixed_rests': str(emp.get('Riposo Fisso', '')).strip(),
                 'history': history,
                 'raw': emp,  # Keep original for pattern extraction
             })

@@ -228,7 +228,7 @@ export function UploadSection({ onDataLoaded }) {
 
                     <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
                         <FileSpreadsheet className="w-4 h-4" />
-                        <span>Formato: ID; Nome Cognome; Ore Contratto; ...; Lun_W1...Dom_W3</span>
+                        <span>Formato: ID; Nome Cognome; Ore Contratto; Riposo Fisso; ...</span>
                     </div>
                 </label>
             </div>

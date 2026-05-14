@@ -478,19 +478,26 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
             else:
                 print(f"ERROR: No shift type covers interval {to_hhmm(intervals[t_idx])} on day {DAY_NAMES[d]}")
     
-    # C7. Preferences / blocked days
+    # C7. Preferences / blocked days / fixed rests
     for i in range(n):
         prefs = (people[i].get('preferences', '') or '').lower()
-        if not prefs:
-            continue
-        for d_idx, d_name in enumerate(DAY_NAMES):
-            if f"no {d_name.lower()}" in prefs:
-                for s in range(num_shift_types):
-                    model.Add(assign[i][d_idx][s] == 0)
-        if "no weekend" in prefs:
-            for d_idx in [5, 6]:
-                for s in range(num_shift_types):
-                    model.Add(assign[i][d_idx][s] == 0)
+        fixed_rests = (people[i].get('fixed_rests', '') or '').lower()
+        
+        if prefs:
+            for d_idx, d_name in enumerate(DAY_NAMES):
+                if f"no {d_name.lower()}" in prefs:
+                    for s in range(num_shift_types):
+                        model.Add(assign[i][d_idx][s] == 0)
+            if "no weekend" in prefs:
+                for d_idx in [5, 6]:
+                    for s in range(num_shift_types):
+                        model.Add(assign[i][d_idx][s] == 0)
+                        
+        if fixed_rests:
+            for d_idx, d_name in enumerate(DAY_NAMES):
+                if d_name.lower() in fixed_rests:
+                    for s in range(num_shift_types):
+                        model.Add(assign[i][d_idx][s] == 0)
     
     # ===== OBJECTIVE: ROTATION + PATTERN PREFERENCE =====
     objective = []
@@ -687,6 +694,7 @@ def read_input(path):
             'contract_min': int(contract_hours * 60),
             'contract_hours': contract_hours,
             'preferences': emp.get('Esigenze/Preferenze', ''),
+            'fixed_rests': str(emp.get('Riposo Fisso', '')).strip(),
             'history': history,
             'raw': emp,  # Keep original data for pattern extraction
         })

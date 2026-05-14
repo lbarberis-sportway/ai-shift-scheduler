@@ -89,13 +89,21 @@ function App() {
         return totalHours;
       };
 
-      const formattedSchedule = result.schedule.map(emp => ({
-        ...emp,
-        ID: emp.ID,
-        Nome: emp.Nome,
-        shifts: emp.shifts,
-        assignedHours: calculateTotalHours(emp.shifts)
-      }));
+      const formattedSchedule = result.schedule.map(emp => {
+        // Cerchiamo i dati originali dell'impiegato per preservare le nuove colonne (Ferie, Riposo Fisso)
+        const originalEmp = data.find(e => String(e.ID) === String(emp.ID));
+        
+        return {
+          ...emp,
+          ID: emp.ID,
+          Nome: emp.Nome,
+          'Riposo Fisso': originalEmp?.['Riposo Fisso'] || '',
+          'Ferie': originalEmp?.['Ferie'] || '',
+          'Esigenze/Preferenze': emp['Esigenze/Preferenze'] || originalEmp?.['Esigenze/Preferenze'] || '',
+          shifts: emp.shifts,
+          assignedHours: calculateTotalHours(emp.shifts)
+        };
+      });
 
       setSchedule(formattedSchedule);
     } catch (error) {

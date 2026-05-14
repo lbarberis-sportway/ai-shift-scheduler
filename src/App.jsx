@@ -208,7 +208,7 @@ function App() {
                 <div className="mt-8 sm:mt-12 text-left bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm max-w-2xl mx-auto">
                   <h4 className="font-semibold text-slate-900 mb-2">Formato CSV Richiesto:</h4>
                   <code className="block bg-slate-100 p-3 rounded text-xs text-slate-700 font-mono overflow-x-auto whitespace-pre sm:whitespace-normal">
-                    ID; Nome Cognome; Ore Contratto; Esigenze/Preferenze; Lun; Mar; ...; Dom; Lun_W1; Mar_W1; ...; Dom_W3
+                    ID; Nome Cognome; Ore Contratto; Riposo Fisso; Ferie; Esigenze/Preferenze; Lun; Mar; Mer; Gio; Ven; Sab; Dom
                   </code>
                 </div>
               </div>

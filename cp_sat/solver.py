@@ -13,6 +13,7 @@ import sys
 import os
 import csv
 import random
+import re
 from collections import defaultdict
 from ortools.sat.python import cp_model
 
@@ -425,6 +426,15 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
         and all(s['start'] >= store_open and s['end'] <= store_close for s in st['segments'])
     ]
     
+    # Add special Campionario shift (8:00 - 16:00, 8 hours)
+    campionario_shift = {
+        'name': 'campionario_8_16',
+        'segments': [{'start': 8 * 60, 'end': 16 * 60}],
+        'total_min': 8 * 60,
+        'slot': 'full'
+    }
+    shift_types.append(campionario_shift)
+    
     # Verify coverage
     uncovered = verify_coverage(shift_types, store_open, store_close)
     if uncovered:
@@ -574,12 +584,36 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
                     for s in range(num_shift_types):
                         model.Add(assign[i][d_idx][s] == 0)
                         
-    # C8. Mondays: exactly 5 hours, no split shifts
+    # C8. Mondays: exactly 5 hours, no split shifts (except when campionario is scheduled on Monday)
+    DAY_MAPPING = {
+        'lun': 0, 'lunedì': 0, 'lunedi': 0,
+        'mar': 1, 'martedì': 1, 'martedi': 1,
+        'mer': 2, 'mercoledì': 2, 'mercoledi': 2,
+        'gio': 3, 'giovedì': 3, 'giovedi': 3,
+        'ven': 4, 'venerdì': 4, 'venerdi': 4,
+        'sab': 5, 'sabato': 5,
+        'dom': 6, 'domenica': 6
+    }
+
     if 'Lun' in DAY_NAMES:
         lun_idx = DAY_NAMES.index('Lun')
         for i in range(n):
             if i in fixed_schedules_map:
                 continue # Skip PT fixed
+            
+            # Check if this employee has campionario on Monday
+            prefs = (people[i].get('preferences', '') or '').lower()
+            is_campionario_monday = False
+            if 'campionario' in prefs:
+                matches = re.findall(r'campionario\s+(\w+)', prefs)
+                for m in matches:
+                    if m in DAY_MAPPING and DAY_MAPPING[m] == lun_idx:
+                        is_campionario_monday = True
+                        break
+            
+            if is_campionario_monday:
+                continue # Skip Monday 5h restriction
+                
             for s in range(num_shift_types):
                 st = shift_types[s]
                 if st['total_min'] != 5 * 60 or st['slot'] == 'split':
@@ -606,6 +640,44 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
                         model.Add(assign[i][d_idx][s] == 0)
                 if not found:
                     print(f"CRITICAL: Could not find shift type for fixed PT {people[i]['name']} on day {d_idx}")
+
+    # C10. Campionario scheduling: force 08:00 - 16:00 on requested days
+    c_s_idx = None
+    for s_idx, st in enumerate(shift_types):
+        if st['name'] == 'campionario_8_16':
+            c_s_idx = s_idx
+            break
+
+    if c_s_idx is not None:
+        for i in range(n):
+            if i in fixed_schedules_map:
+                # Fixed part-timers cannot work the campionario shift
+                for d in range(num_days):
+                    model.Add(assign[i][d][c_s_idx] == 0)
+                continue
+                
+            prefs = (people[i].get('preferences', '') or '').lower()
+            campionario_days = set()
+            if 'campionario' in prefs:
+                matches = re.findall(r'campionario\s+(\w+)', prefs)
+                for m in matches:
+                    if m in DAY_MAPPING:
+                        campionario_days.add(DAY_MAPPING[m])
+            
+            for d in range(num_days):
+                if d in campionario_days:
+                    if d not in closed_days:
+                        # Check vacation
+                        vacations = (people[i].get('vacation_days', '') or '').lower()
+                        d_name = DAY_NAMES[d].lower()
+                        if d_name in vacations:
+                            model.Add(assign[i][d][c_s_idx] == 0)
+                        else:
+                            model.Add(assign[i][d][c_s_idx] == 1)
+                    else:
+                        model.Add(assign[i][d][c_s_idx] == 0)
+                else:
+                    model.Add(assign[i][d][c_s_idx] == 0)
     
     # ===== OBJECTIVE: ROTATION + PATTERN PREFERENCE =====
     objective = []

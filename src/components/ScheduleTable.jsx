@@ -134,7 +134,21 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings, star
             const v = value.trim();
             if (v.toUpperCase() === 'RI') return ['RI', ''];
             const parts = v.split(/\s*\/\s*|\|\|/);
-            return [parts[0]?.trim() || '', parts[1]?.trim() || ''];
+            let m = parts[0]?.trim() || '';
+            let p = parts[1]?.trim() || '';
+
+            if (m && !p) {
+                const timeMatch = m.match(/^(\d{1,2}):/);
+                if (timeMatch) {
+                    const startHour = parseInt(timeMatch[1], 10);
+                    if (startHour >= 13) {
+                        p = m;
+                        m = '';
+                    }
+                }
+            }
+
+            return [m, p];
         };
 
         // Build body: Nome + [mattina, pomeriggio] × 7 days = 15 cells per row
@@ -320,13 +334,29 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings, star
                                     {DAYS.map(day => {
                                         const raw = emp.shifts[day] || '';
                                         const parts = raw.split(/\s*\/\s*/);
-                                        const mattina = parts[0]?.trim() || '';
-                                        const pomeriggio = parts[1]?.trim() || '';
+                                        let mattina = parts[0]?.trim() || '';
+                                        let pomeriggio = parts[1]?.trim() || '';
+
+                                        if (mattina && !pomeriggio) {
+                                            const timeMatch = mattina.match(/^(\d{1,2}):/);
+                                            if (timeMatch) {
+                                                const startHour = parseInt(timeMatch[1], 10);
+                                                if (startHour >= 13) {
+                                                    pomeriggio = mattina;
+                                                    mattina = '';
+                                                }
+                                            }
+                                        }
 
                                         const handleChange = (slot, val) => {
-                                            const m = slot === 'mat' ? val : mattina;
-                                            const p = slot === 'pom' ? val : pomeriggio;
-                                            const combined = p ? `${m} / ${p}` : m;
+                                            const newM = slot === 'mat' ? val : mattina;
+                                            const newP = slot === 'pom' ? val : pomeriggio;
+                                            let combined;
+                                            if (newM && newP) {
+                                                combined = `${newM} / ${newP}`;
+                                            } else {
+                                                combined = newM || newP || '';
+                                            }
                                             onShiftUpdate(idx, day, combined);
                                         };
 

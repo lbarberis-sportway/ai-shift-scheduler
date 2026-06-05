@@ -101,7 +101,8 @@ function App() {
           'Ferie': originalEmp?.['Ferie'] || '',
           'Esigenze/Preferenze': emp['Esigenze/Preferenze'] || originalEmp?.['Esigenze/Preferenze'] || '',
           shifts: emp.shifts,
-          assignedHours: calculateTotalHours(emp.shifts)
+          assignedHours: calculateTotalHours(emp.shifts),
+          notes: {}
         };
       });
 
@@ -117,6 +118,16 @@ function App() {
 
   const handleReset = () => {
     setSchedule(null);
+  };
+
+  const handleNoteUpdate = (empIndex, day, newNote) => {
+    setSchedule(prevSchedule => {
+      const newSchedule = [...prevSchedule];
+      const emp = { ...newSchedule[empIndex] };
+      emp.notes = { ...emp.notes, [day]: newNote };
+      newSchedule[empIndex] = emp;
+      return newSchedule;
+    });
   };
 
   const handleShiftUpdate = (empIndex, day, newShift) => {
@@ -231,6 +242,7 @@ function App() {
                 schedule={schedule} 
                 onReset={handleReset} 
                 onShiftUpdate={handleShiftUpdate}
+                onNoteUpdate={handleNoteUpdate}
                 settings={currentSettings}
                 startDate={scheduleDate}
               />

@@ -456,12 +456,16 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
     shift_covers = []
     for st in shift_types:
         covers = []
+        is_campionario = (st['name'] == 'campionario_8_16')
         for t_start in intervals:
             t_end = t_start + INTERVAL
-            is_covered = any(
-                seg['start'] < t_end and seg['end'] > t_start
-                for seg in st['segments']
-            )
+            if is_campionario:
+                is_covered = False
+            else:
+                is_covered = any(
+                    seg['start'] < t_end and seg['end'] > t_start
+                    for seg in st['segments']
+                )
             covers.append(is_covered)
         shift_covers.append(covers)
     

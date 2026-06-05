@@ -6,7 +6,7 @@ import { DAYS } from '../utils/constants';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings, startDate }) {
+export function ScheduleTable({ schedule, onReset, onShiftUpdate, onNoteUpdate, settings, startDate }) {
 
     const getFormattedDate = (baseDate, dayIdx) => {
         if (!baseDate) return '';
@@ -153,13 +153,25 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings, star
 
         // Build body: Nome + [mattina, pomeriggio] × 7 days = 15 cells per row
         const dayKeys = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
-        const body = schedule.map(emp => {
-            const row = [emp.Nome];
+        const body = [];
+        schedule.forEach(emp => {
+            const row1 = [
+                { content: emp.Nome, rowSpan: 2, styles: { valign: 'middle' } }
+            ];
+            const row2 = [];
+
             dayKeys.forEach(day => {
                 const [m, p] = splitShift(emp.shifts[day]);
-                row.push(m, p);
+                row1.push(m, p);
+                
+                const note = emp.notes?.[day] || '';
+                row2.push({ 
+                    content: note, 
+                    colSpan: 2, 
+                    styles: { halign: 'left', fontSize: 6, textColor: [100, 100, 100], fillColor: [250, 250, 250], cellPadding: 1 } 
+                });
             });
-            return row;
+            body.push(row1, row2);
         });
 
         const dayLabels = ['LUNEDÌ', 'MARTEDÌ', 'MERCOLEDÌ', 'GIOVEDÌ', 'VENERDÌ', 'SABATO', 'DOMENICA'];
@@ -207,6 +219,10 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings, star
             },
             didParseCell: function (data) {
                 if (data.section === 'body' && data.column.index >= 1) {
+                    if (data.cell.colSpan === 2) {
+                        // Note cell styling is handled inline, but we prevent overriding it here
+                        return;
+                    }
                     // Smaller font + tight padding so "09:30-12:00" fits on one line
                     data.cell.styles.fontSize = 6.5;
                     data.cell.styles.cellPadding = 1;
@@ -230,9 +246,7 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings, star
                     doc.setLineWidth(0.1);
                 }
             },
-            alternateRowStyles: {
-                fillColor: [255, 255, 255],
-            },
+            // Removed alternateRowStyles to preserve the 2-row employee blocks
             margin: { top: 35 },
         });
 
@@ -314,8 +328,9 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings, star
                             const isOver = assigned > contract;
 
                             return (
-                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="p-3 font-medium text-slate-800 whitespace-nowrap border-r border-slate-100">
+                                <React.Fragment key={idx}>
+                                    <tr className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="p-3 font-medium text-slate-800 whitespace-nowrap border-r border-slate-100">
                                         {emp.Nome}
                                         <div className="text-xs text-slate-400 font-normal mt-0.5 max-w-[130px] truncate" title={emp['Esigenze/Preferenze']}>
                                             {emp['Esigenze/Preferenze']}
@@ -383,7 +398,24 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, settings, star
                                             </React.Fragment>
                                         );
                                     })}
-                                </tr>
+                                    </tr>
+                                    <tr className="bg-slate-50/30 border-b-2 border-slate-200">
+                                        <td colSpan={3} className="px-3 py-1.5 border-r border-slate-100 text-right text-[11px] font-medium text-slate-400 italic align-middle">
+                                            Note:
+                                        </td>
+                                        {DAYS.map(day => (
+                                            <td key={`note-${day}`} colSpan={2} className="p-1 border-l-2 border-slate-200">
+                                                <input
+                                                    type="text"
+                                                    className="w-full text-xs font-normal px-2 py-1 bg-white/60 text-slate-600 rounded border border-slate-200 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 outline-none transition-all placeholder-slate-300 min-w-[96px] whitespace-nowrap"
+                                                    value={emp.notes?.[day] || ''}
+                                                    placeholder="Aggiungi nota..."
+                                                    onChange={(e) => onNoteUpdate(idx, day, e.target.value)}
+                                                />
+                                            </td>
+                                        ))}
+                                    </tr>
+                                </React.Fragment>
                             );
                         })}
                     </tbody>

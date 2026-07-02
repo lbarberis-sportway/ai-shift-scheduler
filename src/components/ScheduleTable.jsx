@@ -293,13 +293,13 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, onNoteUpdate, 
                 </div>
             </div>
 
-            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+            <div className="overflow-auto max-h-[75vh] scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent relative">
                 <table className="w-full text-left border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-20 bg-slate-50 shadow-sm">
                         {/* Row 1: fixed cols + day names (colSpan=2 each) */}
-                        <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-                            <th rowSpan={2} className="p-3 font-semibold border-b border-r border-slate-200 align-middle whitespace-nowrap">Dipendente</th>
-                            <th rowSpan={2} className="p-3 font-semibold border-b border-r border-slate-200 align-middle text-center whitespace-nowrap">Contratto</th>
+                        <tr className="text-slate-500 text-xs uppercase tracking-wider">
+                            <th rowSpan={2} className="p-3 font-semibold border-b border-r border-slate-200 align-middle whitespace-nowrap sticky left-0 z-30 bg-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Dipendente</th>
+                            <th rowSpan={2} className="p-3 font-semibold border-b border-r border-slate-200 align-middle text-center whitespace-nowrap bg-slate-50">Contratto</th>
                             <th rowSpan={2} className="p-3 font-semibold border-b border-r border-slate-200 align-middle text-center whitespace-nowrap">Ore</th>
                             {DAYS.map((day, i) => (
                                 <th key={day} colSpan={2} className="p-2 font-semibold border-b border-l-2 border-slate-300 text-center">
@@ -330,7 +330,7 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, onNoteUpdate, 
                             return (
                                 <React.Fragment key={idx}>
                                     <tr className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="p-3 font-medium text-slate-800 whitespace-nowrap border-r border-slate-100">
+                                        <td className="p-3 font-medium text-slate-800 whitespace-nowrap border-r border-slate-100 sticky left-0 z-10 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                                         {emp.Nome}
                                         <div className="text-xs text-slate-400 font-normal mt-0.5 max-w-[130px] truncate" title={emp['Esigenze/Preferenze']}>
                                             {emp['Esigenze/Preferenze']}
@@ -399,8 +399,8 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, onNoteUpdate, 
                                         );
                                     })}
                                     </tr>
-                                    <tr className="bg-slate-50/30 border-b-2 border-slate-200">
-                                        <td colSpan={3} className="px-3 py-1.5 border-r border-slate-100 text-right text-[11px] font-medium text-slate-400 italic align-middle">
+                                    <tr className="bg-slate-50/30 border-b-2 border-slate-200 hover:bg-slate-50/50 transition-colors">
+                                        <td colSpan={3} className="px-3 py-1.5 border-r border-slate-100 text-right text-[11px] font-medium text-slate-400 italic align-middle sticky left-0 z-10 bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                                             Note:
                                         </td>
                                         {DAYS.map(day => (

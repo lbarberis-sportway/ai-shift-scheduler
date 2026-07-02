@@ -530,7 +530,12 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
             shift_types[s]['total_min'] * assign[i][d][s]
             for d in range(num_days) for s in range(num_shift_types)
         )
-        model.Add(total_min == target_min)
+        
+        is_on_call = 'CHIAMATA' in str(people[i].get('preferences', '')).upper()
+        if is_on_call:
+            model.Add(total_min <= max(target_min, 40 * 60))
+        else:
+            model.Add(total_min == target_min)
     
     # C4. Daily max 8h (already filtered shift types, but enforce)
     for i in range(n):

@@ -530,12 +530,7 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
             shift_types[s]['total_min'] * assign[i][d][s]
             for d in range(num_days) for s in range(num_shift_types)
         )
-        
-        is_on_call = 'CHIAMATA' in str(people[i].get('preferences', '')).upper()
-        if is_on_call:
-            model.Add(total_min <= max(target_min, 40 * 60))
-        else:
-            model.Add(total_min == target_min)
+        model.Add(total_min == target_min)
     
     # C4. Daily max 8h (already filtered shift types, but enforce)
     for i in range(n):
@@ -650,28 +645,7 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
                 if not found:
                     print(f"CRITICAL: Could not find shift type for fixed PT {people[i]['name']} on day {d_idx}")
 
-        # C10. Chiamata Specific Days Restriction
-        prefs = str(people[i].get('preferences', '')).lower()
-        if 'chiamata' in prefs and '[' in prefs and ']' in prefs:
-            match = re.search(r'chiamata\s*\[(.*?)\]', prefs)
-            if match:
-                days_str = match.group(1)
-                allowed_days = set()
-                for d_name, d_idx in DAY_MAPPING.items():
-                    if re.search(r'\b' + d_name + r'\b', days_str):
-                        allowed_days.add(d_idx)
-                
-                if allowed_days:
-                    for d in range(num_days):
-                        if d not in allowed_days:
-                            # Riposo forzato negli altri giorni
-                            for s in range(num_shift_types):
-                                model.Add(assign[i][d][s] == 0)
-                        else:
-                            # Lavoro obbligatorio nei giorni specificati tra le parentesi
-                            model.Add(sum(assign[i][d][s] for s in range(num_shift_types)) >= 1)
-
-    # C11. Campionario scheduling: force 08:00 - 16:00 on requested days
+    # C10. Campionario scheduling: force 08:00 - 16:00 on requested days
     c_s_idx = None
     for s_idx, st in enumerate(shift_types):
         if st['name'] == 'campionario_8_16':

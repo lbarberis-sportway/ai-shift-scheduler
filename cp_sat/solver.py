@@ -542,20 +542,32 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
     for i in range(n):
         model.Add(sum(works[i][d] for d in range(num_days)) <= 6)
     
-    # C6. FULL COVERAGE: at least 1 person at EVERY time interval on open days
+    # C6. FULL COVERAGE PER DEPARTMENT: at least 1 person at EVERY time interval for non-optional departments
+    OPTIONAL_DEPARTMENTS = ['bike', 'scarpe', 'young', 'cucina']
+    
+    dept_to_emp_indices = defaultdict(list)
+    for i in range(n):
+        rep = str(people[i].get('reparto', 'Generico')).strip().lower()
+        dept_to_emp_indices[rep].append(i)
+
     for d in range(num_days):
         if d in closed_days:
             continue
         for t_idx in range(num_intervals):
-            staff_at_t = []
-            for i in range(n):
-                for s in range(num_shift_types):
-                    if shift_covers[s][t_idx]:
-                        staff_at_t.append(assign[i][d][s])
-            if staff_at_t:
-                model.Add(sum(staff_at_t) >= 1)
-            else:
-                print(f"ERROR: No shift type covers interval {to_hhmm(intervals[t_idx])} on day {DAY_NAMES[d]}")
+            for dept, emp_indices in dept_to_emp_indices.items():
+                if dept in OPTIONAL_DEPARTMENTS:
+                    continue # Skip strict coverage for optional departments
+                
+                staff_at_t = []
+                for i in emp_indices:
+                    for s in range(num_shift_types):
+                        if shift_covers[s][t_idx]:
+                            staff_at_t.append(assign[i][d][s])
+                
+                if staff_at_t:
+                    model.Add(sum(staff_at_t) >= 1)
+                else:
+                    print(f"WARNING: No shift type covers interval {to_hhmm(intervals[t_idx])} on day {DAY_NAMES[d]} for department {dept}")
     
     # C7. Preferences / blocked days / fixed rests
     for i in range(n):

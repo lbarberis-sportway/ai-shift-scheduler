@@ -133,6 +133,7 @@ async def optimize(request: OptimizeRequest, user=Depends(verify_token)):
                 'preferences': emp.get('Esigenze/Preferenze', ''),
                 'fixed_rests': str(emp.get('Riposo Fisso', '')).strip(),
                 'vacation_days': str(emp.get('Ferie', '')).strip(),
+                'reparto': str(emp.get('Reparto', 'Generico')).strip(),
                 'history': history,
                 'raw': emp,  # Keep original for pattern extraction
             })

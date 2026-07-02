@@ -851,6 +851,7 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
             results.append({
                 "ID": p.get('employee_id', ''),
                 "Nome": p['name'],
+                "reparto": p.get('reparto', 'Generico'),
                 "shifts": emp_shifts,
                 "assignedHours": round(total_worked_min / 60, 2),
                 "Ore Contratto": p.get('contract_hours', p['contract_min'] / 60)

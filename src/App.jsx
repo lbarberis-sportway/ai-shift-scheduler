@@ -97,6 +97,7 @@ function App() {
           ...emp,
           ID: emp.ID,
           Nome: emp.Nome,
+          Reparto: emp.reparto || originalEmp?.['Reparto'] || 'Generico',
           'Riposo Fisso': originalEmp?.['Riposo Fisso'] || '',
           'Ferie': originalEmp?.['Ferie'] || '',
           'Esigenze/Preferenze': emp['Esigenze/Preferenze'] || originalEmp?.['Esigenze/Preferenze'] || '',

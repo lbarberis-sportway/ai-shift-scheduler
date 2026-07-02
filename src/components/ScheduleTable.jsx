@@ -28,6 +28,7 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, onNoteUpdate, 
             return {
                 'ID': emp.ID,
                 'Nome Cognome': emp.Nome,
+                'Reparto': emp.Reparto || '',
                 'Ore Contratto': emp['Ore Contratto'] || 0,
                 'Riposo Fisso': emp['Riposo Fisso'] || '',
                 'Ferie': emp['Ferie'] || '',
@@ -111,7 +112,7 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, onNoteUpdate, 
 
         doc.setFontSize(12);
         doc.setTextColor(71, 85, 105); // Slate-600
-        const departments = settings?.departments?.join(', ') || 'Nessun reparto specificato';
+        const departments = settings?.negozi?.join(', ') || 'Nessun reparto specificato';
         doc.text(`Reparto: ${departments}`, 14, 28);
 
         const generationDate = new Date().toLocaleDateString('it-IT');

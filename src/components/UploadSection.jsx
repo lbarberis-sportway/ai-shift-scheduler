@@ -78,15 +78,14 @@ export function UploadSection({ onDataLoaded }) {
         closedDays: [],
         openTime: '09:30',
         closeTime: '19:30',
-        departments: ['Cassa'],
+        negozi: ['PCOLAGHI'],
         startDate: getNextMonday()
     });
     const [parsedData, setParsedData] = React.useState(null);
     const [fileName, setFileName] = React.useState('');
 
-    const allDepartments = [
-        'Cassa', 'Montagna', 'Fitness', 'Scarpe', 'Bike',
-        'Abbigliamento', 'Young', '210 Lounge'
+    const allStores = [
+        'PCOLAGHI', '210 LOUNGE'
     ];
 
     const daysList = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
@@ -102,10 +101,10 @@ export function UploadSection({ onDataLoaded }) {
                     if (results.data && results.data.length > 0) {
                         // Check if columns exist
                         const firstRow = results.data[0];
-                        if ('ID' in firstRow && 'Nome Cognome' in firstRow && 'Ore Contratto' in firstRow) {
+                        if ('ID' in firstRow && 'Nome Cognome' in firstRow && 'Ore Contratto' in firstRow && 'Reparto' in firstRow) {
                             setParsedData(results.data);
                         } else {
-                            alert("CSV non valido. Assicurati che ci siano le colonne 'ID', 'Nome Cognome' e 'Ore Contratto'.");
+                            alert("CSV non valido. Assicurati che ci siano le colonne 'ID', 'Nome Cognome', 'Ore Contratto' e 'Reparto'.");
                             setParsedData(null);
                             setFileName('');
                         }
@@ -151,11 +150,11 @@ export function UploadSection({ onDataLoaded }) {
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <MultiSelect
-                            label="Reparti"
-                            options={allDepartments}
-                            selected={settings.departments}
-                            onChange={(val) => setSettings({ ...settings, departments: val })}
-                            placeholder="Seleziona Reparti"
+                            label="Negozi"
+                            options={allStores}
+                            selected={settings.negozi}
+                            onChange={(val) => setSettings({ ...settings, negozi: val })}
+                            placeholder="Seleziona Negozio"
                         />
                         <MultiSelect
                             label="Giorni di Chiusura"
@@ -228,7 +227,7 @@ export function UploadSection({ onDataLoaded }) {
 
                     <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
                         <FileSpreadsheet className="w-4 h-4" />
-                        <span>Formato: ID; Nome Cognome; Ore Contratto; Riposo Fisso; Ferie; Esigenze/Preferenze; Lun; ...; Dom</span>
+                        <span>Formato: ID; Nome Cognome; Reparto; Ore Contratto; Riposo Fisso; Ferie; Esigenze/Preferenze; Lun; ...; Dom</span>
                     </div>
                 </label>
             </div>

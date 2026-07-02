@@ -86,7 +86,7 @@ export function UploadSection({ onDataLoaded }) {
 
     const allDepartments = [
         'Cassa', 'Montagna', 'Fitness', 'Scarpe', 'Bike',
-        'Abbigliamento', 'Young'
+        'Abbigliamento', 'Young', '210 Lounge'
     ];
 
     const daysList = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];

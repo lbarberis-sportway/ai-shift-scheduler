@@ -105,31 +105,33 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, onNoteUpdate, 
         const doc = new jsPDF('l', 'mm', 'a4');
         const pageWidth = doc.internal.pageSize.getWidth();
 
-        // Header
-        doc.setFontSize(20);
-        doc.setTextColor(220, 38, 38); // Red-600
-        doc.text('SPORTWAY - Programmazione Turni', 14, 20);
-
-        doc.setFontSize(12);
-        doc.setTextColor(71, 85, 105); // Slate-600
-        const departments = settings?.negozi?.join(', ') || 'Nessun reparto specificato';
-        doc.text(`Reparto: ${departments}`, 14, 28);
-
+        const stores = settings?.negozi?.join(', ') || 'Nessun negozio specificato';
         const generationDate = new Date().toLocaleDateString('it-IT');
-        doc.setFontSize(10);
-        doc.text(`Generato il: ${generationDate}`, pageWidth - 14, 20, { align: 'right' });
+        const weekRange = startDate
+            ? `Settimana dal ${getFullDate(startDate, 0)} al ${getFullDate(startDate, 6)}`
+            : '';
 
-        if (startDate) {
-            const endD = new Date(startDate);
-            endD.setDate(endD.getDate() + 6);
-            const rangeStr = `Settimana dal ${getFullDate(startDate, 0)} al ${getFullDate(startDate, 6)}`;
-            doc.setFontSize(11);
-            doc.setTextColor(51, 65, 85); // Slate-700
-            doc.text(rangeStr, 14, 34);
-        }
+        const drawHeader = () => {
+            doc.setFontSize(20);
+            doc.setTextColor(220, 38, 38);
+            doc.text('SPORTWAY - Programmazione Turni', 14, 20);
 
-        // Splits "HH:MM-HH:MM / HH:MM-HH:MM" or "HH:MM-HH:MM||HH:MM-HH:MM"
-        // into [mattina, pomeriggio]
+            doc.setFontSize(12);
+            doc.setTextColor(71, 85, 105);
+            doc.text(`Negozio: ${stores}`, 14, 28);
+
+            doc.setFontSize(10);
+            doc.text(`Generato il: ${generationDate}`, pageWidth - 14, 20, { align: 'right' });
+
+            if (weekRange) {
+                doc.setFontSize(11);
+                doc.setTextColor(51, 65, 85);
+                doc.text(weekRange, 14, 34);
+            }
+        };
+
+        drawHeader();
+
         const splitShift = (value) => {
             if (!value || value.trim() === '' || value.trim() === '-') return ['', ''];
             const v = value.trim();
@@ -152,62 +154,61 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, onNoteUpdate, 
             return [m, p];
         };
 
-        // Build body: Nome + [mattina, pomeriggio] × 7 days = 15 cells per row
         const dayKeys = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
-        const body = [];
-        schedule.forEach(emp => {
-            const row1 = [
-                { content: emp.Nome, rowSpan: 2, styles: { valign: 'middle' } }
-            ];
-            const row2 = [];
-
-            dayKeys.forEach(day => {
-                const [m, p] = splitShift(emp.shifts[day]);
-                row1.push(m, p);
-                
-                const note = emp.notes?.[day] || '';
-                row2.push({ 
-                    content: note, 
-                    colSpan: 2, 
-                    styles: { halign: 'left', fontSize: 6, textColor: [100, 100, 100], fillColor: [250, 250, 250], cellPadding: 1 } 
-                });
-            });
-            body.push(row1, row2);
-        });
-
         const dayLabels = ['LUNEDÌ', 'MARTEDÌ', 'MERCOLEDÌ', 'GIOVEDÌ', 'VENERDÌ', 'SABATO', 'DOMENICA'];
 
-        autoTable(doc, {
-            startY: 40,
-            head: [
-                // Row 1: day names spanning 2 cols each, Nome spanning 2 rows
-                [
-                    { content: 'DIPENDENTE', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fontStyle: 'bold' } },
-                    ...dayLabels.map((d, i) => ({ 
-                        content: startDate ? `${d} ${getFormattedDate(startDate, i)}` : d, 
-                        colSpan: 2, 
-                        styles: { halign: 'center' } 
-                    })),
-                ],
-                // Row 2: Mattina | Pomeriggio repeated for each day
-                [
-                    ...Array(7).fill(null).flatMap(() => [
-                        { content: 'Mattina', styles: { halign: 'center', fontSize: 6 } },
-                        { content: 'Pomeriggio', styles: { halign: 'center', fontSize: 6 } },
-                    ]),
-                ],
+        const buildBody = (employees) => {
+            const body = [];
+            employees.forEach(emp => {
+                const row1 = [
+                    { content: emp.Nome, rowSpan: 2, styles: { valign: 'middle' } }
+                ];
+                const row2 = [];
+
+                dayKeys.forEach(day => {
+                    const [m, p] = splitShift(emp.shifts[day]);
+                    row1.push(m, p);
+
+                    const note = emp.notes?.[day] || '';
+                    row2.push({
+                        content: note,
+                        colSpan: 2,
+                        styles: { halign: 'left', fontSize: 6, textColor: [100, 100, 100], fillColor: [250, 250, 250], cellPadding: 1 }
+                    });
+                });
+                body.push(row1, row2);
+            });
+            return body;
+        };
+
+        const headConfig = [
+            [
+                { content: 'DIPENDENTE', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fontStyle: 'bold' } },
+                ...dayLabels.map((d, i) => ({
+                    content: startDate ? `${d} ${getFormattedDate(startDate, i)}` : d,
+                    colSpan: 2,
+                    styles: { halign: 'center' }
+                })),
             ],
-            body: body,
+            [
+                ...Array(7).fill(null).flatMap(() => [
+                    { content: 'Mattina', styles: { halign: 'center', fontSize: 6 } },
+                    { content: 'Pomeriggio', styles: { halign: 'center', fontSize: 6 } },
+                ]),
+            ],
+        ];
+
+        const sharedOptions = {
+            head: headConfig,
             headStyles: {
-                fillColor: [220, 38, 38], // Red-600
+                fillColor: [220, 38, 38],
                 textColor: [255, 255, 255],
                 fontSize: 8,
                 fontStyle: 'bold',
                 halign: 'center',
             },
             columnStyles: {
-                0: { fontStyle: 'bold', cellWidth: 30 }, // Nome
-                // Shift cols 1-14: 2 per day × 7 days
+                0: { fontStyle: 'bold', cellWidth: 30 },
                 ...Object.fromEntries(
                     Array.from({ length: 14 }, (_, i) => [i + 1, { halign: 'center', cellWidth: 17 }])
                 ),
@@ -220,39 +221,70 @@ export function ScheduleTable({ schedule, onReset, onShiftUpdate, onNoteUpdate, 
             },
             didParseCell: function (data) {
                 if (data.section === 'body' && data.column.index >= 1) {
-                    if (data.cell.colSpan === 2) {
-                        // Note cell styling is handled inline, but we prevent overriding it here
-                        return;
-                    }
-                    // Smaller font + tight padding so "09:30-12:00" fits on one line
+                    if (data.cell.colSpan === 2) return;
                     data.cell.styles.fontSize = 6.5;
                     data.cell.styles.cellPadding = 1;
                     const isMattina = (data.column.index - 1) % 2 === 0;
                     if (isMattina) {
-                        data.cell.styles.fillColor = [238, 242, 255]; // Indigo-50
-                        data.cell.styles.textColor = [67, 56, 202];   // Indigo-700
+                        data.cell.styles.fillColor = [238, 242, 255];
+                        data.cell.styles.textColor = [67, 56, 202];
                     } else {
-                        data.cell.styles.fillColor = [255, 251, 235]; // Amber-50
-                        data.cell.styles.textColor = [180, 83, 9];    // Amber-700
+                        data.cell.styles.fillColor = [255, 251, 235];
+                        data.cell.styles.textColor = [180, 83, 9];
                     }
                 }
             },
             didDrawCell: function (data) {
-                // Draw a thicker vertical line at the start of each day block (indexes 1, 3, 5, etc.)
                 if (data.column.index >= 1 && (data.column.index - 1) % 2 === 0) {
-                    doc.setDrawColor(148, 163, 184); // Slate-400
+                    doc.setDrawColor(148, 163, 184);
                     doc.setLineWidth(0.4);
                     doc.line(data.cell.x, data.cell.y, data.cell.x, data.cell.y + data.cell.height);
-                    // Reset for other borders
                     doc.setLineWidth(0.1);
                 }
             },
-            // Removed alternateRowStyles to preserve the 2-row employee blocks
-            margin: { top: 35 },
+            didDrawPage: function () {
+                drawHeader();
+            },
+        };
+
+        // Raggruppa per reparto
+        const grouped = schedule.reduce((acc, emp) => {
+            const dept = emp.Reparto || 'Generico';
+            if (!acc[dept]) acc[dept] = [];
+            acc[dept].push(emp);
+            return acc;
+        }, {});
+
+        const deptEntries = Object.entries(grouped);
+        let currentY = 40;
+
+        deptEntries.forEach(([deptName, employees], idx) => {
+            // Intestazione reparto
+            if (currentY + 20 > doc.internal.pageSize.getHeight()) {
+                doc.addPage();
+                currentY = 40;
+            }
+
+            doc.setFontSize(13);
+            doc.setTextColor(30, 41, 59);
+            doc.text(`Reparto: ${deptName}`, 14, currentY);
+            currentY += 6;
+
+            // Se è l'ultimo reparto, non aggiungere spazio extra dopo
+            const gap = idx < deptEntries.length - 1 ? 10 : 0;
+
+            autoTable(doc, {
+                startY: currentY,
+                ...sharedOptions,
+                body: buildBody(employees),
+                margin: { top: 35 },
+            });
+
+            currentY = doc.lastAutoTable.finalY + gap;
         });
 
         const dateSuffix = startDate ? `_${getFormattedDate(startDate, 0).replace('/', '-')}_${getFormattedDate(startDate, 6).replace('/', '-')}` : '';
-        doc.save(`turni_${departments.replace(/, /g, '_')}${dateSuffix}.pdf`);
+        doc.save(`turni_${stores.replace(/, /g, '_')}${dateSuffix}.pdf`);
     };
 
     return (

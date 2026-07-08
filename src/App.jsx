@@ -170,7 +170,7 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div className="w-[95%] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="bg-white p-1 rounded-lg border border-slate-100 shadow-sm">
               <img src="/logo.png" alt="Sportway Logo" className="w-8 h-8 object-contain" />
@@ -202,7 +202,7 @@ function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 sm:pt-10">
+      <main className="w-[95%] mx-auto px-4 sm:px-6 pt-6 sm:pt-10">
         {!session ? (
           <Login />
         ) : (

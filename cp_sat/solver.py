@@ -569,6 +569,16 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
                 else:
                     print(f"WARNING: No shift type covers interval {to_hhmm(intervals[t_idx])} on day {DAY_NAMES[d]} for department {dept}")
     
+    DAY_MAPPING = {
+        'lun': 0, 'lunedì': 0, 'lunedi': 0,
+        'mar': 1, 'martedì': 1, 'martedi': 1,
+        'mer': 2, 'mercoledì': 2, 'mercoledi': 2,
+        'gio': 3, 'giovedì': 3, 'giovedi': 3,
+        'ven': 4, 'venerdì': 4, 'venerdi': 4,
+        'sab': 5, 'sabato': 5,
+        'dom': 6, 'domenica': 6
+    }
+
     # C7. Preferences / blocked days / fixed rests
     for i in range(n):
         if i in fixed_schedules_map:
@@ -586,6 +596,41 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
                 for d_idx in [5, 6]:
                     for s in range(num_shift_types):
                         model.Add(assign[i][d_idx][s] == 0)
+
+            # --- Preferenza Mattina / Pomeriggio ---
+            mattina_matches = re.findall(r'mattina(?:\s+([a-z,\s]+))?', prefs)
+            for m in mattina_matches:
+                days_str = m.strip()
+                target_days = []
+                if days_str:
+                    for d_key, d_idx in DAY_MAPPING.items():
+                        if d_key in days_str:
+                            target_days.append(d_idx)
+                else:
+                    target_days = list(range(num_days))
+                
+                for d_idx in target_days:
+                    if d_idx not in closed_days:
+                        for s in range(num_shift_types):
+                            if shift_types[s]['slot'] != 'morning':
+                                model.Add(assign[i][d_idx][s] == 0)
+
+            pomeriggio_matches = re.findall(r'pomeriggio(?:\s+([a-z,\s]+))?', prefs)
+            for m in pomeriggio_matches:
+                days_str = m.strip()
+                target_days = []
+                if days_str:
+                    for d_key, d_idx in DAY_MAPPING.items():
+                        if d_key in days_str:
+                            target_days.append(d_idx)
+                else:
+                    target_days = list(range(num_days))
+                
+                for d_idx in target_days:
+                    if d_idx not in closed_days:
+                        for s in range(num_shift_types):
+                            if shift_types[s]['slot'] != 'afternoon':
+                                model.Add(assign[i][d_idx][s] == 0)
                         
         if fixed_rests:
             for d_idx, d_name in enumerate(DAY_NAMES):
@@ -601,15 +646,6 @@ def solve_schedule(people, settings, db_patterns=None, employee_day_patterns=Non
                         model.Add(assign[i][d_idx][s] == 0)
                         
     # C8. Mondays: exactly 5 hours, no split shifts (except when campionario is scheduled on Monday)
-    DAY_MAPPING = {
-        'lun': 0, 'lunedì': 0, 'lunedi': 0,
-        'mar': 1, 'martedì': 1, 'martedi': 1,
-        'mer': 2, 'mercoledì': 2, 'mercoledi': 2,
-        'gio': 3, 'giovedì': 3, 'giovedi': 3,
-        'ven': 4, 'venerdì': 4, 'venerdi': 4,
-        'sab': 5, 'sabato': 5,
-        'dom': 6, 'domenica': 6
-    }
 
     if 'Lun' in DAY_NAMES:
         lun_idx = DAY_NAMES.index('Lun')
